@@ -66,6 +66,14 @@ portfolio_assistant/
 
 Clone or navigate to the project directory and create a virtual environment:
 
+**Windows:**
+```cmd
+cd portfolio_assistant
+python -m venv .venv
+.venv\Scripts\activate
+```
+
+**macOS / Linux:**
 ```bash
 cd portfolio_assistant
 python3 -m venv .venv

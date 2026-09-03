@@ -5,6 +5,8 @@
 ## 1. Overview & Objectives
 Phase 2 enhances the Portfolio Assistant by adding deep quantitative financial analysis. It enriches raw stock symbols with fundamental metrics (P/E ratio, P/B ratio, Dividend Yield, Debt-to-Equity, ROE), calculates portfolio-level performance metrics (XIRR, Sharpe/Sortino ratios, Beta vs. Nifty 50), and analyzes tax harvesting opportunities (STCG vs. LTCG).
 
+> **Key dependency on Phase 1**: XIRR calculation requires historical transaction cash flows sourced from `GET /trades` (Zerodha trade book), which must be ingested and stored in the `trade_transactions` table established in Phase 1.
+
 ---
 
 ## 2. Technical Architecture & Component Design
@@ -30,12 +32,14 @@ graph TD
 ## 3. Key Components to Build
 
 ### 3.1 Market Data & Fundamentals Enricher (`src/services/market_data.py`)
-- Integration with secondary data sources (e.g., `yfinance` or Indian market financial APIs).
-- Caching stock fundamental metrics in Redis/SQLite to avoid redundant network calls.
+- **Tiered provider chain** to ensure reliability:
+  1. **Primary**: Paid/official API (Twelve Data or Polygon.io) — used for all live fundamental and candle data.
+  2. **Fallback**: `yfinance` — used only when the primary provider is unavailable or rate-limited. Not relied upon as a primary source due to its unofficial scraper nature and absence of SLA.
+- All fundamental data (P/E, P/B, ROE, Debt/Equity, Market Cap) is cached in Redis with a **24-hour TTL** to minimize external API calls.
 - Historical price candle retrieval (1-year daily candles) for Beta and Sharpe ratio computations.
 
 ### 3.2 Quantitative Analytics Engine (`src/services/analytics_engine.py`)
-- **Portfolio XIRR Calculation**: Computes Extended Internal Rate of Return taking into account historical cash inflows (buy transactions) and current market value.
+- **Portfolio XIRR Calculation**: Computes Extended Internal Rate of Return using historical cash flows from the `trade_transactions` table (buy/sell dates and amounts) against current market value. Does **not** rely solely on current holdings data.
 - **Benchmark Comparative Beta**: Measures portfolio volatility against Nifty 50 and Nifty 500 indices.
 - **Sharpe & Sortino Ratios**: Evaluates risk-adjusted returns against the Indian 10-Year Government Bond risk-free rate (~7%).
 
@@ -48,13 +52,18 @@ graph TD
 ## 4. Proposed File Changes
 
 #### [NEW] `src/services/market_data.py`
-- Fundamental ratio fetcher & market candle downloader.
+- Tiered fundamental ratio fetcher (Twelve Data primary, yfinance fallback) with Redis caching (TTL: 24h).
 
 #### [NEW] `src/services/analytics_engine.py`
-- Math routines for XIRR, Sharpe, Sortino, Beta, and drawdown metrics.
+- Math routines for XIRR (using `trade_transactions` cash flows), Sharpe, Sortino, Beta, and drawdown metrics.
 
 #### [NEW] `src/services/tax_harvesting.py`
 - Tax optimization and capital gains classifier.
+
+#### [NEW] `src/core/scheduler.py` (if not already created in Phase 1)
+- Register Phase 2 scheduled jobs:
+  - Daily (market open): Fundamentals refresh for all held symbols.
+  - Weekly (Sunday 8 AM): Portfolio digest preparation.
 
 #### [MODIFY] `src/api/holdings.py`
 - New endpoints: `/api/v1/analytics/performance` and `/api/v1/analytics/tax-harvesting`.
@@ -65,5 +74,7 @@ graph TD
 ---
 
 ## 5. Verification & Testing Strategy
-- Unit tests validating XIRR calculation accuracy against known financial benchmark datasets.
+- Unit tests validating XIRR calculation accuracy against known financial benchmark datasets using mock `trade_transactions` records.
 - Mock market data verification for off-market hour testing.
+- Verify fallback to `yfinance` triggers correctly when primary provider returns a non-200 response.
+- Verify Redis cache hit/miss behavior for fundamentals (TTL expiry simulation).

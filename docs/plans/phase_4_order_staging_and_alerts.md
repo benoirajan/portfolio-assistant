@@ -36,7 +36,15 @@ graph TD
 - Interfaces with Zerodha API:
   - Endpoint: `POST /orders/regular`
   - Parameters: `tradingsymbol`, `exchange`, `transaction_type` (`BUY`/`SELL`), `order_type` (`LIMIT`/`MARKET`), `quantity`, `price`, `product` (`CNC`).
-- Stores trade audit history in PostgreSQL database.
+- Immediately stores the returned `zerodha_order_id` in the `ORDERS` table with status `SUBMITTED`.
+- Stores trade audit history in PostgreSQL with full context (user, symbol, quantity, price, timestamp) for financial audit trail.
+
+### 3.3 Order Status Polling Job (`src/services/order_executor.py`)
+- Registered with `APScheduler` to run every 60 seconds while any order is in `SUBMITTED` or `OPEN` state.
+- Calls `GET /orders/{order_id}` for each pending order.
+- Updates `ORDERS.status` and `ORDERS.executed_at` on `COMPLETE`.
+- Stores `ORDERS.rejection_reason` on `REJECTED` or `CANCELLED`.
+- Dispatches a notification on terminal state (`COMPLETE` or `REJECTED`).
 
 ### 3.3 Notification & Alerting Service (`src/services/notifications.py`)
 - Integration with Telegram Bot API (`python-telegram-bot`) and Webhooks.
@@ -53,7 +61,7 @@ graph TD
 - Pre-trade validation limits and safety checks.
 
 #### [NEW] `src/services/order_executor.py`
-- Zerodha order execution client & trade log recorder.
+- Zerodha order execution client, `zerodha_order_id` storage, and order status polling job.
 
 #### [NEW] `src/services/notifications.py`
 - Telegram bot & webhook notification dispatch engine.
@@ -61,5 +69,10 @@ graph TD
 #### [NEW] `src/api/orders.py`
 - Endpoints: `GET /api/v1/orders/staged`, `POST /api/v1/orders/approve`, `DELETE /api/v1/orders/cancel`.
 
+#### [MODIFY] `src/core/scheduler.py`
+- Register order status polling job (every 60 seconds, active only when pending orders exist).
+- Register weekly portfolio digest notification job (Sunday 8 AM IST).
+
 #### [MODIFY] `src/ui/app.py`
 - Add "Order Staging & Execution Queue" tab with 1-click order submission modals.
+- Display live order status (SUBMITTED / OPEN / COMPLETE / REJECTED) with auto-refresh.
