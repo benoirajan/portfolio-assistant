@@ -25,6 +25,10 @@ app.include_router(auth_router)
 app.include_router(holdings_router)
 app.include_router(analytics_router)
 
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
 @app.get("/")
 def root():
     return {

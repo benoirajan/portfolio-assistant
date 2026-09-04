@@ -32,7 +32,8 @@ def get_portfolio_performance_metrics(x_enctoken: Optional[str] = Header(None, a
 
         holdings = zerodha_service.get_holdings()
         enriched = market_data_service.enrich_holdings_with_fundamentals(holdings)
-        metrics = analytics_engine.calculate_portfolio_metrics(enriched)
+        trades   = zerodha_service.get_trades()
+        metrics  = analytics_engine.calculate_portfolio_metrics(enriched, trades=trades)
         return {"status": "success", "metrics": metrics}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
