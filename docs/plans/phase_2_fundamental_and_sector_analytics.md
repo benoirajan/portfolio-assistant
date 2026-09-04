@@ -32,11 +32,14 @@ graph TD
 ## 3. Key Components to Build
 
 ### 3.1 Market Data & Fundamentals Enricher (`src/services/market_data.py`)
-- **Tiered provider chain** to ensure reliability:
-  1. **Primary**: Paid/official API (Twelve Data or Polygon.io) — used for all live fundamental and candle data.
-  2. **Fallback**: `yfinance` — used only when the primary provider is unavailable or rate-limited. Not relied upon as a primary source due to its unofficial scraper nature and absence of SLA.
-- All fundamental data (P/E, P/B, ROE, Debt/Equity, Market Cap) is cached in Redis with a **24-hour TTL** to minimize external API calls.
-- Historical price candle retrieval (1-year daily candles) for Beta and Sharpe ratio computations.
+- **NSE-focused tiered provider chain** — all sources are India/NSE-specific:
+  1. **Primary**: `jugaad-trader` or `nsepython` — unofficial but widely used Python libraries that scrape NSE's public endpoints for fundamentals (P/E, P/B, 52-week high/low, sector). No API key required.
+  2. **Secondary**: `yfinance` with `.NS` suffix — fetches NSE-listed stock data from Yahoo Finance. Unofficial scraper, used as a second fallback.
+  3. **Static metadata DB** — hardcoded fundamentals for the most common Nifty 50 / Nifty 500 stocks. Used when both live sources fail (e.g., off-market hours, rate limits).
+- All fundamental data (P/E, P/B, ROE, Debt/Equity, Market Cap) is cached in-memory with a **24-hour TTL** to minimize external calls.
+- Historical price candle retrieval (1-year daily candles) for Beta and Sharpe ratio computations using Zerodha's own `GET /instruments/historical` endpoint where possible.
+
+> **Why not Twelve Data or Polygon.io?** These are global providers with limited or no NSE coverage on free tiers. NSE-native sources give more accurate sector classifications, market cap categories (SEBI-defined Large/Mid/Small Cap), and Indian corporate action data.
 
 ### 3.2 Quantitative Analytics Engine (`src/services/analytics_engine.py`)
 - **Portfolio XIRR Calculation**: Computes Extended Internal Rate of Return using historical cash flows from the `trade_transactions` table (buy/sell dates and amounts) against current market value. Does **not** rely solely on current holdings data.
@@ -52,7 +55,7 @@ graph TD
 ## 4. Proposed File Changes
 
 #### [NEW] `src/services/market_data.py`
-- Tiered fundamental ratio fetcher (Twelve Data primary, yfinance fallback) with Redis caching (TTL: 24h).
+- NSE-focused tiered fundamental fetcher: `nsepython` / `jugaad-trader` primary → `yfinance (.NS)` secondary → static metadata DB fallback. In-memory TTL cache (24h).
 
 #### [NEW] `src/services/analytics_engine.py`
 - Math routines for XIRR (using `trade_transactions` cash flows), Sharpe, Sortino, Beta, and drawdown metrics.

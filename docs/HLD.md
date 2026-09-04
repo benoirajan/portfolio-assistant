@@ -90,9 +90,10 @@ graph TD
 
 ### 3.2 Data Ingestion & Storage Layer
 - **Historical Market Data Sync**: Ingests historical daily candles for portfolio holdings and benchmark indices (e.g., NIFTY 50, NIFTY 500) to calculate Beta, CAGR, and volatility.
-- **Stock Fundamentals Provider**: Enriches stock data with fundamental ratios (P/E, P/B, Debt/Equity, ROE, Market Cap) using a tiered provider chain:
-  1. **Primary**: Paid/official API (Twelve Data or Polygon.io) for reliability and SLA guarantees.
-  2. **Fallback**: `yfinance` for non-critical or cached lookups only. Not used as a primary source due to its unofficial scraper nature and lack of SLA.
+- **Stock Fundamentals Provider**: Enriches stock data with fundamental ratios (P/E, P/B, Debt/Equity, ROE, Market Cap) using an NSE-focused tiered provider chain:
+  1. **Primary**: `nsepython` / `jugaad-trader` — NSE-native Python libraries that fetch fundamentals directly from NSE public endpoints. No API key required. Provides SEBI-defined sector and market cap classifications.
+  2. **Secondary**: `yfinance` with `.NS` suffix — Yahoo Finance fallback for NSE-listed stocks. Unofficial scraper, used only when primary is unavailable.
+  3. **Static metadata DB** — hardcoded fundamentals for common Nifty 50 / Nifty 500 stocks. Used when both live sources fail (off-market hours, rate limits).
   - All fundamental data is cached with a 24-hour TTL to minimize external API calls.
 - **Background Job Scheduler**: `APScheduler` manages all recurring background tasks:
   - Daily (market open): Holdings sync, fundamentals refresh.
@@ -352,7 +353,7 @@ portfolio_assistant/
 - Implement structured logging with `structlog` and `request_id` propagation.
 
 ### Phase 2: Fundamental & Sector Analytics Engine
-- Integrate stock metadata enricher using a tiered provider chain (Twelve Data primary, yfinance fallback).
+- Integrate stock metadata enricher using an NSE-focused tiered provider chain (`nsepython` primary, `yfinance .NS` secondary, static DB fallback).
 - Ingest trade history via `GET /trades` to supply XIRR cash flow inputs.
 - Compute sector exposure, single-stock concentration risk, and asset allocation breakdown.
 - Calculate portfolio XIRR, unrealized gain/loss, and STCG/LTCG tax breakdown.
