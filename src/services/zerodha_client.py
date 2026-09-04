@@ -289,6 +289,20 @@ class ZerodhaService:
                 logger.error(f"Positions fetch failed: {e}")
         return {"net": [], "day": []}
 
+    def get_trades(self) -> List[Dict[str, Any]]:
+        """Fetches historical trade book for XIRR cash flow reconstruction."""
+        if self.enctoken:
+            json_data, err = self._make_enctoken_request("/trades")
+            if json_data and json_data.get("status") == "success":
+                return json_data.get("data", [])
+
+        if self.access_token and self.kite_client:
+            try:
+                return self.kite_client.trades()
+            except Exception as e:
+                logger.error(f"Trades fetch failed: {e}")
+        return []
+
     def get_margins(self) -> Dict[str, Any]:
         if self.enctoken:
             json_data, err = self._make_enctoken_request("/user/margins")
