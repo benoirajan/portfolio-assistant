@@ -11,6 +11,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import requests
+from typing import Tuple, Dict, Any
 
 from src.core.config import settings
 
@@ -24,9 +25,9 @@ st.set_page_config(
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000/api/v1")
 
-# Helper function to fetch data from FastAPI Backend Server via REST HTTP calls
+@st.cache_data(ttl="5m")
 def fetch_from_backend(endpoint: str, enctoken_input: str = "") -> Tuple[Dict[str, Any], bool]:
-    """Fetches data from FastAPI backend REST API (http://127.0.0.1:8000/api/v1/...). Returns (data_dict, server_online_flag)."""
+    """Fetches data from FastAPI backend REST API. Returns (data_dict, server_online_flag)."""
     headers = {}
     effective_token = enctoken_input if enctoken_input else settings.ZERODHA_ENCTOKEN
     if effective_token:
@@ -37,9 +38,9 @@ def fetch_from_backend(endpoint: str, enctoken_input: str = "") -> Tuple[Dict[st
         response = requests.get(url, headers=headers, timeout=5)
         if response.status_code == 200:
             return response.json(), True
-    except Exception as e:
+    except Exception:
         pass
-    
+
     # Fallback to local python service if FastAPI server is currently offline
     return fetch_fallback_local(endpoint, effective_token), False
 
@@ -89,28 +90,27 @@ with st.sidebar:
     st.image("https://kite.zerodha.com/static/images/kite-logo.svg", width=120)
     st.header("Zerodha Account Connection")
     
-    default_index = 1 if settings.ZERODHA_ENCTOKEN else 0
-    conn_mode = st.radio(
-        "Select Connection Mode",
-        ["🧪 Demo Portfolio (Sample)", "🔑 Free Live Sync (Web Enctoken)", "⚡ Paid Kite Connect API"],
-        index=default_index
+    conn_mode = st.segmented_control(
+        "Connection mode",
+        ["🧪 Demo", "🔑 Enctoken", "⚡ Kite API"],
+        default="🔑 Enctoken" if settings.ZERODHA_ENCTOKEN else "🧪 Demo",
     )
     
     enctoken_val = ""
-    if conn_mode == "🧪 Demo Portfolio (Sample)":
-        st.success("Mode: **Demo Demat Account**")
-    elif conn_mode == "🔑 Free Live Sync (Web Enctoken)":
-        st.info("Sync actual Zerodha account for **Free** via FastAPI Backend")
+    if conn_mode == "🧪 Demo":
+        st.success("Mode: Demo Demat Account")
+    elif conn_mode == "🔑 Enctoken":
+        st.info("Sync actual Zerodha account for free via FastAPI backend")
         initial_val = settings.ZERODHA_ENCTOKEN if settings.ZERODHA_ENCTOKEN else ""
-        enctoken_val = st.text_input("Paste Zerodha `enctoken` Cookie", value=initial_val, type="password")
+        enctoken_val = st.text_input("Zerodha enctoken cookie", value=initial_val, type="password")
         if settings.ZERODHA_ENCTOKEN and not enctoken_val:
-            st.caption("🔒 Using `ZERODHA_ENCTOKEN` from `.env` file.")
-    elif conn_mode == "⚡ Paid Kite Connect API":
+            st.caption("Using ZERODHA_ENCTOKEN from .env file")
+    elif conn_mode == "⚡ Kite API":
         st.info("Kite Connect OAuth API")
-        api_key = st.text_input("Kite API Key", value=settings.KITE_API_KEY, type="password")
-        api_secret = st.text_input("Kite API Secret", value=settings.KITE_API_SECRET, type="password")
+        api_key = st.text_input("Kite API key", value=settings.KITE_API_KEY, type="password")
+        api_secret = st.text_input("Kite API secret", value=settings.KITE_API_SECRET, type="password")
         login_url = f"https://kite.zerodha.com/connect/login?v=3&api_key={api_key}" if api_key else "#"
-        st.markdown(f'<a href="{login_url}" target="_blank"><button style="width:100%; background-color:#388e3c; color:white; border:none; padding:10px; border-radius:5px; font-weight:bold; cursor:pointer;">🔑 Login with Zerodha</button></a>', unsafe_allow_html=True)
+        st.link_button("Login with Zerodha", login_url, icon=":material/login:", type="primary")
     
     st.divider()
     st.markdown("### Risk & Benchmark Settings")
@@ -129,7 +129,7 @@ if is_server_online:
 else:
     st.info("ℹ️ **Backend REST API**: FastAPI server is offline. (Tip: Run `python -m uvicorn src.main:app --port 8000` to start FastAPI server).")
 
-if conn_mode == "🔑 Free Live Sync (Web Enctoken)":
+if conn_mode == "🔑 Enctoken":
     is_live = holdings_res.get("is_live", False)
     error_msg = holdings_res.get("error_message", None)
     active_token = enctoken_val if enctoken_val else settings.ZERODHA_ENCTOKEN
@@ -154,161 +154,156 @@ if not df_holdings.empty:
         df_holdings["pnl_percentage"] = (df_holdings["pnl"] / df_holdings["invested_value"].replace(0, 1)) * 100
 
 # Top KPI Metric Bar
-k1, k2, k3, k4, k5, k6 = st.columns(6)
-with k1:
-    st.metric("Total Invested", f"₹{summary.get('total_investment', 0):,.2f}")
-with k2:
-    st.metric("Current Value", f"₹{summary.get('current_value', 0):,.2f}")
-with k3:
+with st.container(horizontal=True):
     pnl = summary.get("total_pnl", 0)
     pnl_pct = summary.get("total_pnl_percentage", 0)
-    st.metric("Overall P&L", f"₹{pnl:,.2f}", delta=f"{pnl_pct:.2f}%")
-with k4:
     xirr = metrics.get("xirr_percentage", 0.0)
-    st.metric("Portfolio XIRR", f"{xirr:.2f}%")
-with k5:
     beta = metrics.get("portfolio_beta", 1.0)
-    st.metric("Portfolio Beta", f"{beta:.2f}", help="Volatility relative to Nifty 50")
-with k6:
-    st.metric("Risk Profile", metrics.get("risk_profile_tag", "Balanced"))
+    st.metric("Total invested", f"₹{summary.get('total_investment', 0):,.2f}", border=True)
+    st.metric("Current value", f"₹{summary.get('current_value', 0):,.2f}", border=True)
+    st.metric("Overall P&L", f"₹{pnl:,.2f}", delta=f"{pnl_pct:.2f}%", border=True)
+    st.metric("Portfolio XIRR", f"{xirr:.2f}%", border=True)
+    st.metric("Portfolio Beta", f"{beta:.2f}", help="Volatility relative to Nifty 50", border=True)
+    st.metric("Risk profile", metrics.get("risk_profile_tag", "Balanced"), border=True)
 
 st.divider()
 
 # Main Tabs
 tab1, tab2, tab3, tab4 = st.tabs([
-    "📊 Holdings & Fundamentals", 
-    "🍕 Sector & Concentration", 
-    "📈 Performance & Risk Metrics", 
+    "📊 Holdings & Fundamentals",
+    "🍕 Sector & Concentration",
+    "📈 Performance & Risk Metrics",
     "⚖️ Tax Loss Harvesting"
-])
+], on_change="rerun")
 
-with tab1:
-    st.subheader("Current Demat Holdings & Fundamental Ratios")
-    
-    if df_holdings.empty:
-        st.warning("No holdings found.")
-    else:
-        col_f1, col_f2 = st.columns([2, 1])
-        with col_f1:
-            search_query = st.text_input("🔍 Search Stock Symbol", "")
-        with col_f2:
-            sectors_available = df_holdings["sector"].unique() if "sector" in df_holdings else []
-            sector_filter = st.multiselect("Filter by Sector", options=sectors_available)
-        
-        filtered_df = df_holdings.copy()
-        if search_query and "tradingsymbol" in filtered_df:
-            filtered_df = filtered_df[filtered_df["tradingsymbol"].str.contains(search_query.upper())]
-        if sector_filter and "sector" in filtered_df:
-            filtered_df = filtered_df[filtered_df["sector"].isin(sector_filter)]
-        
-        display_cols = [c for c in [
-            "tradingsymbol", "sector", "cap_category", "quantity", "average_price", "last_price",
-            "pnl", "pnl_percentage", "pe_ratio", "pb_ratio", "roe", "div_yield", "trend_200_sma"
-        ] if c in filtered_df.columns]
-        
-        display_df = filtered_df[display_cols].rename(columns={
-            "tradingsymbol": "Symbol", "sector": "Sector", "cap_category": "Category",
-            "quantity": "Qty", "average_price": "Avg Price (₹)", "last_price": "LTP (₹)",
-            "pnl": "P&L (₹)", "pnl_percentage": "P&L (%)", "pe_ratio": "P/E",
-            "pb_ratio": "P/B", "roe": "ROE (%)", "div_yield": "Div Yield (%)", "trend_200_sma": "200 SMA Trend"
-        })
+if tab1.open:
+    with tab1:
+        st.subheader("Current Demat Holdings & Fundamental Ratios")
 
-        st.dataframe(
-            display_df.style.format({
-                "Avg Price (₹)": "₹{:,.2f}", "LTP (₹)": "₹{:,.2f}", "P&L (₹)": "₹{:,.2f}",
-                "P&L (%)": "{:+.2f}%", "P/E": "{:.1f}", "P/B": "{:.1f}", "ROE (%)": "{:.1f}%", "Div Yield (%)": "{:.2f}%"
-            }).map(
-                lambda val: "color: #4caf50; font-weight: bold;" if (isinstance(val, (int, float)) and val > 0) else "color: #f44336; font-weight: bold;", 
-                subset=["P&L (₹)", "P&L (%)"]
-            ),
-            use_container_width=True,
-            height=400
-        )
+        if df_holdings.empty:
+            st.warning("No holdings found.")
+        else:
+            col_f1, col_f2 = st.columns([2, 1])
+            with col_f1:
+                search_query = st.text_input("Search stock symbol", "", label_visibility="collapsed", placeholder="Search symbol...")
+            with col_f2:
+                sectors_available = df_holdings["sector"].unique().tolist() if "sector" in df_holdings else []
+                sector_filter = st.multiselect("Filter by sector", options=sectors_available)
 
-with tab2:
-    st.subheader("Portfolio Sector & Concentration Analytics")
-    if not df_holdings.empty and "current_value" in df_holdings:
-        c1, c2 = st.columns(2)
-        with c1:
-            st.markdown("#### Sector Allocation Breakdown")
-            sector_df = df_holdings.groupby("sector")["current_value"].sum().reset_index()
-            fig_sector = px.pie(sector_df, values="current_value", names="sector", hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
-            fig_sector.update_traces(textinfo="percent+label")
-            st.plotly_chart(fig_sector, use_container_width=True)
-            
-        with c2:
-            st.markdown("#### Market Cap Category Distribution")
-            cap_df = df_holdings.groupby("cap_category")["current_value"].sum().reset_index()
-            fig_cap = px.bar(cap_df, x="cap_category", y="current_value", color="cap_category", labels={"current_value": "Value (₹)", "cap_category": "Category"}, text_auto='.2s')
-            st.plotly_chart(fig_cap, use_container_width=True)
+            filtered_df = df_holdings.copy()
+            if search_query and "tradingsymbol" in filtered_df:
+                filtered_df = filtered_df[filtered_df["tradingsymbol"].str.contains(search_query.upper())]
+            if sector_filter and "sector" in filtered_df:
+                filtered_df = filtered_df[filtered_df["sector"].isin(sector_filter)]
 
-        st.markdown("#### Single Stock Concentration Risk")
-        total_val = df_holdings["current_value"].sum()
-        if total_val > 0 and "tradingsymbol" in df_holdings:
-            df_holdings["weight_pct"] = (df_holdings["current_value"] / total_val) * 100
-            fig_weight = px.bar(df_holdings.sort_values("weight_pct", ascending=False), x="tradingsymbol", y="weight_pct", color="weight_pct", color_continuous_scale="Reds")
-            fig_weight.add_hline(y=max_sector_cap, line_dash="dash", line_color="red", annotation_text=f"Max Concentration Threshold ({max_sector_cap}%)")
-            st.plotly_chart(fig_weight, use_container_width=True)
+            display_cols = [c for c in [
+                "tradingsymbol", "sector", "cap_category", "quantity", "average_price", "last_price",
+                "pnl", "pnl_percentage", "pe_ratio", "pb_ratio", "roe", "div_yield", "trend_200_sma"
+            ] if c in filtered_df.columns]
 
-with tab3:
-    st.subheader("📈 Performance & Risk Analytics (Phase 2)")
-    
-    p1, p2, p3, p4 = st.columns(4)
-    with p1:
-        st.metric("Extended IRR (XIRR)", f"{metrics.get('xirr_percentage', 0):.2f}%", help="Annualized internal rate of return")
-    with p2:
-        st.metric("Sharpe Ratio", f"{metrics.get('sharpe_ratio', 0):.2f}", help="Risk-adjusted return above ~7.1% risk-free rate")
-    with p3:
-        st.metric("Sortino Ratio", f"{metrics.get('sortino_ratio', 0):.2f}", help="Return adjusted for downside risk")
-    with p4:
-        st.metric("Weighted Portfolio P/E", f"{metrics.get('weighted_pe', 0):.1f}x")
+            st.dataframe(
+                filtered_df[display_cols].style.map(
+                    lambda val: "color: #4caf50; font-weight: bold;" if isinstance(val, (int, float)) and val > 0 else "color: #f44336; font-weight: bold;",
+                    subset=[c for c in ["pnl", "pnl_percentage"] if c in display_cols]
+                ),
+                column_config={
+                    "tradingsymbol": st.column_config.TextColumn("Symbol", pinned=True),
+                    "sector": st.column_config.TextColumn("Sector"),
+                    "cap_category": st.column_config.TextColumn("Category"),
+                    "quantity": st.column_config.NumberColumn("Qty"),
+                    "average_price": st.column_config.NumberColumn("Avg price", format="₹%.2f"),
+                    "last_price": st.column_config.NumberColumn("LTP", format="₹%.2f"),
+                    "pnl": st.column_config.NumberColumn("P&L (₹)", format="₹%.2f"),
+                    "pnl_percentage": st.column_config.NumberColumn("P&L (%)", format="%.2f%%"),
+                    "pe_ratio": st.column_config.NumberColumn("P/E", format="%.1f"),
+                    "pb_ratio": st.column_config.NumberColumn("P/B", format="%.1f"),
+                    "roe": st.column_config.NumberColumn("ROE (%)", format="%.1f%%"),
+                    "div_yield": st.column_config.NumberColumn("Div yield", format="%.2f%%"),
+                    "trend_200_sma": st.column_config.TextColumn("200 SMA trend"),
+                },
+                hide_index=True,
+                height=400,
+            )
 
-    col_a1, col_a2 = st.columns(2)
-    with col_a1:
-        st.markdown("#### Portfolio Beta Gauge (vs Nifty 50)")
-        fig_beta = go.Figure(go.Indicator(
-            mode="gauge+number",
-            value=metrics.get("portfolio_beta", 1.0),
-            title={'text': "Beta (Nifty 50 = 1.0)"},
-            gauge={
-                'axis': {'range': [0, 2]},
-                'bar': {'color': "#29b6f6"},
-                'steps': [
-                    {'range': [0, 0.85], 'color': "#81c784"},
-                    {'range': [0.85, 1.15], 'color': "#fff176"},
-                    {'range': [1.15, 2.0], 'color': "#e57373"}
-                ],
-            }
-        ))
-        st.plotly_chart(fig_beta, use_container_width=True)
+if tab2.open:
+    with tab2:
+        st.subheader("Portfolio Sector & Concentration Analytics")
+        if not df_holdings.empty and "current_value" in df_holdings:
+            c1, c2 = st.columns(2)
+            with c1:
+                st.markdown("#### Sector allocation breakdown")
+                sector_df = df_holdings.groupby("sector")["current_value"].sum().reset_index()
+                fig_sector = px.pie(sector_df, values="current_value", names="sector", hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+                fig_sector.update_traces(textinfo="percent+label")
+                st.plotly_chart(fig_sector)
 
-    with col_a2:
-        st.markdown("#### Fundamental Valuation Matrix")
-        st.write(f"- **Weighted Portfolio ROE**: `{metrics.get('weighted_roe', 0):.1f}%`")
-        st.write(f"- **Herfindahl Concentration Index**: `{metrics.get('herfindahl_index', 0):,.0f}` *(Below 1,500 = Diversified)*")
-        st.write(f"- **Risk Classification**: `{metrics.get('risk_profile_tag', 'Balanced')}`")
+            with c2:
+                st.markdown("#### Market cap category distribution")
+                cap_df = df_holdings.groupby("cap_category")["current_value"].sum().reset_index()
+                fig_cap = px.bar(cap_df, x="cap_category", y="current_value", color="cap_category", labels={"current_value": "Value (₹)", "cap_category": "Category"}, text_auto=".2s")
+                st.plotly_chart(fig_cap)
 
-with tab4:
-    st.subheader("⚖️ Tax Loss Harvesting & Capital Gains Analysis")
-    st.info("Optimize capital gains tax liabilities by harvesting unrealized losses before March 31st.")
-    
-    t1, t2, t3, t4 = st.columns(4)
-    with t1:
-        st.metric("Net STCG Gains (<1 Year)", f"₹{tax_data.get('net_stcg', 0):,.2f}")
-    with t2:
-        st.metric("STCG Tax Payable (20%)", f"₹{tax_data.get('stcg_tax_payable', 0):,.2f}")
-    with t3:
-        st.metric("Net LTCG Gains (>1 Year)", f"₹{tax_data.get('net_ltcg', 0):,.2f}")
-    with t4:
-        st.metric("LTCG Tax Payable (12.5%)", f"₹{tax_data.get('ltcg_tax_payable', 0):,.2f}")
+            st.markdown("#### Single stock concentration risk")
+            total_val = df_holdings["current_value"].sum()
+            if total_val > 0 and "tradingsymbol" in df_holdings:
+                df_holdings["weight_pct"] = (df_holdings["current_value"] / total_val) * 100
+                fig_weight = px.bar(df_holdings.sort_values("weight_pct", ascending=False), x="tradingsymbol", y="weight_pct", color="weight_pct", color_continuous_scale="Reds")
+                fig_weight.add_hline(y=max_sector_cap, line_dash="dash", line_color="red", annotation_text=f"Max concentration threshold ({max_sector_cap}%)")
+                st.plotly_chart(fig_weight)
 
-    st.markdown("#### LTCG Annual Exemption Progress (₹1.25 Lakh Limit)")
-    ltcg_used = tax_data.get("ltcg_exemption_used", 0)
-    st.progress(min(1.0, ltcg_used / 125000.0), text=f"Used ₹{ltcg_used:,.2f} out of ₹1,25,000 Free Exemption Limit")
+if tab3.open:
+    with tab3:
+        st.subheader("Performance & Risk Analytics")
 
-    candidates = tax_data.get("harvestable_loss_candidates", [])
-    if candidates:
-        st.markdown("#### 💡 Harvestable Loss Candidates")
-        st.dataframe(pd.DataFrame(candidates), use_container_width=True)
-    else:
-        st.success("No tax loss harvesting candidates required. Portfolio is fully gain-aligned!")
+        with st.container(horizontal=True):
+            st.metric("XIRR", f"{metrics.get('xirr_percentage', 0):.2f}%", help="Annualized internal rate of return", border=True)
+            st.metric("Sharpe ratio", f"{metrics.get('sharpe_ratio', 0):.2f}", help="Risk-adjusted return above ~7.1% risk-free rate", border=True)
+            st.metric("Sortino ratio", f"{metrics.get('sortino_ratio', 0):.2f}", help="Return adjusted for downside risk", border=True)
+            st.metric("Weighted P/E", f"{metrics.get('weighted_pe', 0):.1f}x", border=True)
+
+        col_a1, col_a2 = st.columns(2)
+        with col_a1:
+            st.markdown("#### Portfolio Beta gauge (vs Nifty 50)")
+            fig_beta = go.Figure(go.Indicator(
+                mode="gauge+number",
+                value=metrics.get("portfolio_beta", 1.0),
+                title={"text": "Beta (Nifty 50 = 1.0)"},
+                gauge={
+                    "axis": {"range": [0, 2]},
+                    "bar": {"color": "#29b6f6"},
+                    "steps": [
+                        {"range": [0, 0.85], "color": "#81c784"},
+                        {"range": [0.85, 1.15], "color": "#fff176"},
+                        {"range": [1.15, 2.0], "color": "#e57373"},
+                    ],
+                },
+            ))
+            st.plotly_chart(fig_beta)
+
+        with col_a2:
+            st.markdown("#### Fundamental valuation matrix")
+            st.write(f"- **Weighted portfolio ROE**: `{metrics.get('weighted_roe', 0):.1f}%`")
+            st.write(f"- **Herfindahl concentration index**: `{metrics.get('herfindahl_index', 0):,.0f}` *(below 1,500 = diversified)*")
+            st.write(f"- **Risk classification**: `{metrics.get('risk_profile_tag', 'Balanced')}`")
+
+if tab4.open:
+    with tab4:
+        st.subheader("Tax Loss Harvesting & Capital Gains Analysis")
+        st.info("Optimize capital gains tax liabilities by harvesting unrealized losses before March 31st.")
+
+        with st.container(horizontal=True):
+            st.metric("Net STCG (<1 year)", f"₹{tax_data.get('net_stcg', 0):,.2f}", border=True)
+            st.metric("STCG tax payable (20%)", f"₹{tax_data.get('stcg_tax_payable', 0):,.2f}", border=True)
+            st.metric("Net LTCG (>1 year)", f"₹{tax_data.get('net_ltcg', 0):,.2f}", border=True)
+            st.metric("LTCG tax payable (12.5%)", f"₹{tax_data.get('ltcg_tax_payable', 0):,.2f}", border=True)
+
+        st.markdown("#### LTCG annual exemption progress (₹1.25 lakh limit)")
+        ltcg_used = tax_data.get("ltcg_exemption_used", 0)
+        st.progress(min(1.0, ltcg_used / 125000.0), text=f"Used ₹{ltcg_used:,.2f} of ₹1,25,000 exemption limit")
+
+        candidates = tax_data.get("harvestable_loss_candidates", [])
+        if candidates:
+            st.markdown("#### Harvestable loss candidates")
+            st.dataframe(pd.DataFrame(candidates), hide_index=True)
+        else:
+            st.success("No tax loss harvesting candidates required. Portfolio is fully gain-aligned!")
