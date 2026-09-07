@@ -2,7 +2,7 @@ import logging
 import datetime
 from typing import Dict, List, Any
 
-logger = logging.getLogger("tax_harvesting")
+logger = logging.getLogger("portfolio_assistant.tax_harvesting")
 
 STCG_TAX_RATE = 0.20  # 20% Short Term Capital Gains Tax
 LTCG_TAX_RATE = 0.125  # 12.5% Long Term Capital Gains Tax

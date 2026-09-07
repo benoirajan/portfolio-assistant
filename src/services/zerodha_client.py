@@ -236,6 +236,7 @@ class ZerodhaService:
                     base_delay=1.0,
                     multiplier=2.0,
                     retryable_on=(urllib.error.URLError, TimeoutError, ConnectionError),
+                    exclude_on=(urllib.error.HTTPError,),
                 )
                 if result and result.get("status") == "success":
                     return result, None

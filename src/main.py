@@ -11,7 +11,7 @@ from src.api.holdings import router as holdings_router
 from src.api.analytics import router as analytics_router
 from src.api.advisory import router as advisory_router
 
-setup_logging(level="INFO")
+setup_logging(level="DEBUG")
 logger = logging.getLogger("portfolio_assistant.main")
 
 app = FastAPI(
