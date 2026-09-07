@@ -135,7 +135,7 @@ def _call_gemini(prompt: str) -> Optional[str]:
             max_output_tokens=2048,
         )
 
-        logger.info("Sending request to Gemini API (model=gemini-3.6-flash, prompt_len=%d)", len(prompt))
+        logger.info("Sending request to Gemini API (model=%s, prompt_len=%d)", settings.GEMINI_MODEL, len(prompt))
         logger.debug("Gemini Prompt Payload:\n%s", prompt)
 
         @retry(
@@ -148,7 +148,7 @@ def _call_gemini(prompt: str) -> Optional[str]:
         def _generate():
             try:
                 return client.models.generate_content(
-                    model="gemini-3.6-flash",
+                    model=settings.GEMINI_MODEL,
                     contents=prompt,
                     config=config,
                 )
@@ -260,7 +260,7 @@ def get_recommendations(
     if settings.LLM_PROVIDER == "gemini" and settings.GEMINI_API_KEY:
         prompt = _build_prompt(holdings, rule_flags, investment_goal, total_value)
         llm_raw = _call_gemini(prompt)
-        llm_provider = "gemini-3.6-flash"
+        llm_provider = settings.GEMINI_MODEL
     elif settings.LLM_PROVIDER == "ollama":
         prompt = _build_prompt(holdings, rule_flags, investment_goal, total_value)
         llm_raw = _call_ollama(prompt)
