@@ -126,6 +126,6 @@ streamlit run src/ui/app.py
 ## 🗺️ Roadmap
 
 - [x] **Phase 1**: Zerodha OAuth 2.0 Authentication & Holdings Ingestion MVP
-- [ ] **Phase 2**: Fundamental Analytics (P/E, ROE), Benchmark Comparison (Nifty 50), XIRR & Tax Harvesting (STCG/LTCG)
+- [x] **Phase 2**: Fundamental Analytics (P/E, ROE), Benchmark Comparison (Nifty 50), XIRR & Tax Harvesting (STCG/LTCG)
 - [ ] **Phase 3**: AI Advisory Engine (Google Gemini API LLM Context Prompting & Buy/Sell/Hold Rationale)
 - [ ] **Phase 4**: Order Staging Safety Queue & Telegram / Webhook Alerts

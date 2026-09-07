@@ -1,0 +1,261 @@
+# LLD 01 — Phase 3: AI Advisory Engine
+
+**Files covered:**
+`src/core/config.py` · `src/services/rebalancer.py` · `src/services/llm_advisor.py` · `src/api/advisory.py` · `src/main.py` · `src/ui/app.py` · `requirements.txt` · `.env.example`
+
+---
+
+## 1. `src/core/config.py` — LLM Settings
+
+**What changed:** Added 4 new fields to the `Settings` class.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `LLM_PROVIDER` | `str` | `"gemini"` | Active LLM backend. Accepts `"gemini"` or `"ollama"` |
+| `GEMINI_API_KEY` | `str` | `""` | Google AI Studio API key. Auto-resolved from env by SDK |
+| `OLLAMA_BASE_URL` | `str` | `"http://localhost:11434"` | Base URL for self-hosted Ollama instance |
+| `OLLAMA_MODEL` | `str` | `"mistral"` | Ollama model name (e.g. `mistral`, `llama3`) |
+
+**Design note:** `GEMINI_API_KEY` is read from `.env` via `python-dotenv` and then pushed into `os.environ` inside `_call_gemini()` using `os.environ.setdefault()` so the `google-genai` SDK can auto-resolve it — matching the documented pattern in `docs/Gemini_api_doc.md`.
+
+---
+
+## 2. `src/services/rebalancer.py` — Deterministic Rule Engine
+
+**New file.** Evaluates portfolio holdings against 3 hard rules before the LLM step. Returns a list of structured flag dicts.
+
+### Function: `evaluate_rules(holdings, max_single_stock_pct, max_sector_pct)`
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `holdings` | `List[Dict]` | — | Enriched holdings list from `market_data_service` |
+| `max_single_stock_pct` | `float` | `15.0` | Max allowed weight % for any single stock |
+| `max_sector_pct` | `float` | `25.0` | Max allowed weight % for any single sector |
+
+**Returns:** `List[Dict]` — each dict has `{symbol, rule, severity, detail}`
+
+**Rules evaluated:**
+
+| Rule ID | Trigger Condition | Severity | Symbol field |
+|---|---|---|---|
+| `OVER_CONCENTRATION` | Single stock weight > `max_single_stock_pct` | `HIGH` | Stock symbol |
+| `UNDERPERFORMANCE` | LTP < 200-day SMA **and** ROE ≤ 0 | `MEDIUM` | Stock symbol |
+| `SECTOR_OVERWEIGHT` | Sector total weight > `max_sector_pct` | `MEDIUM` | `None` |
+
+**Implementation detail:** Sector values are aggregated in a single pass before the per-stock loop to avoid O(n²) recalculation.
+
+---
+
+## 3. `src/services/llm_advisor.py` — LLM Advisory Service
+
+**New file.** Orchestrates the full advisory pipeline:
+
+```
+evaluate_rules()
+    ↓
+_build_prompt()
+    ↓
+_call_gemini() or _call_ollama()
+    ↓ (on failure / validation error)
+_rule_based_recommendations()   ← fallback
+    ↓
+return {recommendations, rule_flags, source, investment_goal, llm_provider}
+```
+
+### 3.1 Pydantic Response Schema (Guardrails)
+
+**`Recommendation`** — single stock recommendation:
+
+| Field | Type | Validation |
+|---|---|---|
+| `symbol` | `str` | Must exist in current holdings (enforced post-parse) |
+| `action` | `Literal["BUY","SELL","HOLD","TRIM"]` | Enum enforced by Pydantic `Literal` |
+| `target_allocation_pct` | `float` | Must be ≥ 0, rounded to 2dp |
+| `confidence_score` | `float` | Must be in `[0.0, 1.0]`, rounded to 2dp |
+| `rationale` | `str` | Free text, 1-2 sentences |
+
+**`RecommendationList`** — full LLM response wrapper:
+
+| Validation | Rule |
+|---|---|
+| Allocation sum | Sum of all `target_allocation_pct` must not exceed 100% |
+| Small-cap cap | Any Small/Mid Cap stock with `target_allocation_pct > 20%` is clamped to 20% post-parse |
+| Symbol existence | Symbols not in current holdings are filtered out (hallucination guard) |
+
+### 3.2 `_build_prompt()` — Data Minimization
+
+Absolute ₹ values are **never** included in the LLM payload. Only the following fields are sent per stock:
+
+- `weight_pct` — relative portfolio weight %
+- `sector`, `cap_category`
+- `pe_ratio`, `pb_ratio`, `roe_pct`, `div_yield_pct`
+- `trend_200_sma`
+
+Rule engine flag details are appended as a plain-text summary list at the end of the prompt.
+
+### 3.3 `_call_gemini()`
+
+| Setting | Value |
+|---|---|
+| Client init | `genai.Client()` — SDK auto-resolves key from `os.environ` |
+| Model | `gemini-3.6-flash` |
+| Output mode | `response_mime_type="application/json"` + `response_schema=RecommendationList` |
+| Temperature | `0.2` — low for deterministic financial output |
+| Max tokens | `2048` |
+| Retry | 3 attempts, **429 only** — all other errors fail fast |
+
+### 3.4 `_call_ollama()`
+
+| Setting | Value |
+|---|---|
+| Endpoint | `{OLLAMA_BASE_URL}/api/generate` |
+| Stream | `False` |
+| Timeout | 60 seconds |
+| Retry | 3 attempts on any exception |
+
+### 3.5 `_rule_based_recommendations()` — Deterministic Fallback
+
+Pure fallback — no external calls. Maps rule flags to actions:
+
+| Rule flag | Action | Target allocation | Confidence |
+|---|---|---|---|
+| `OVER_CONCENTRATION` | `TRIM` | Capped at 15% | `0.75` |
+| `UNDERPERFORMANCE` | `SELL` | Current weight | `0.75` |
+| No flags | `HOLD` | Current weight | `0.60` |
+
+`source` field in the response is `"llm"` or `"rule_engine"` — surfaced in the UI as a badge.
+
+---
+
+## 4. `src/api/advisory.py` — Advisory REST Endpoint
+
+**New file.**
+
+### `GET /api/v1/advisory/recommendations`
+
+**Query parameters:**
+
+| Param | Type | Default | Constraints | Description |
+|---|---|---|---|---|
+| `investment_goal` | `str` | `"Moderate Growth"` | — | Passed verbatim into LLM prompt |
+| `max_single_stock_pct` | `float` | `15.0` | `5.0 – 50.0` | Single stock concentration cap |
+| `max_sector_pct` | `float` | `25.0` | `10.0 – 60.0` | Sector concentration cap |
+
+**Request header:**
+
+| Header | Description |
+|---|---|
+| `X-Enctoken` | Optional — Zerodha enctoken for live holdings |
+
+**Response shape:**
+```json
+{
+  "status": "success",
+  "recommendations": [...],
+  "rule_flags": [...],
+  "source": "llm | rule_engine",
+  "investment_goal": "Moderate Growth",
+  "llm_provider": "gemini-3.6-flash | null"
+}
+```
+
+---
+
+## 5. `src/main.py` — Router Registration
+
+Added:
+```python
+from src.api.advisory import router as advisory_router
+app.include_router(advisory_router)
+```
+
+---
+
+## 6. `src/ui/app.py` — AI Advisory Tab
+
+### Sidebar additions
+
+- `investment_goal` selectbox: `["Moderate Growth", "Aggressive Growth", "Capital Preservation", "Income / Dividend", "Balanced"]`
+- `max_stock_cap` slider: 5–40%, default 15%
+
+### New backend fetch
+
+```python
+advisory_res, _ = fetch_from_backend(
+    f"advisory/recommendations?investment_goal={investment_goal}"
+    f"&max_single_stock_pct={max_stock_cap}&max_sector_pct={max_sector_cap}",
+    enctoken_input=enctoken_val,
+)
+```
+
+### Offline fallback
+
+`fetch_fallback_local()` extended — parses query string params and calls `get_recommendations()` directly when FastAPI server is offline.
+
+### Tab 5 — 🤖 AI Advisory
+
+| UI Component | Purpose |
+|---|---|
+| Source badge (`st.success` / `st.info`) | Shows LLM provider name or rule engine fallback indicator |
+| `st.warning` banners | Rule engine alerts with 🔴 HIGH / 🟡 MEDIUM severity icons |
+| `st.expander` per stock | Expandable recommendation card with `st.progress` confidence bar |
+| `st.dataframe` | Summary table with `ProgressColumn` for confidence scores |
+
+**Tab count change:** `tab1, tab2, tab3, tab4` → `tab1, tab2, tab3, tab4, tab5`
+
+---
+
+## 7. `requirements.txt`
+
+Added:
+```
+google-genai>=1.0.0
+```
+
+---
+
+## 8. `.env.example`
+
+Added:
+```ini
+# Phase 3 — AI Advisory Engine
+# Get your free Gemini API key at: https://aistudio.google.com/app/apikey
+GEMINI_API_KEY=your_gemini_api_key_here
+LLM_PROVIDER=gemini        # "gemini" | "ollama"
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=mistral
+```
+
+---
+
+## 9. Gemini API Bug Fixes
+
+Three bugs found by comparing the implementation against `docs/Gemini_api_doc.md`:
+
+### Bug 1 — Wrong model name
+
+| | Value |
+|---|---|
+| Before | `model="gemini-2.0-flash"` |
+| After (doc) | `model="gemini-2.5-flash"` |
+| After (live 404) | `model="gemini-3.6-flash"` — API returned 404 stating `gemini-2.5-flash` is no longer available to new users |
+
+### Bug 2 — Wrong client initialisation
+
+| | Code |
+|---|---|
+| Before | `genai.Client(api_key=settings.GEMINI_API_KEY)` |
+| After | `os.environ.setdefault("GEMINI_API_KEY", settings.GEMINI_API_KEY)` then `genai.Client()` |
+
+The official doc shows the SDK auto-resolves `GEMINI_API_KEY` from the environment. Passing `api_key=` directly is not the documented pattern.
+
+### Bug 3 — Manual JSON parsing instead of native structured output
+
+| | Approach |
+|---|---|
+| Before | Manually stripped markdown fences (` ``` `) from response text, then called `json.loads()` |
+| After | `types.GenerateContentConfig(response_mime_type="application/json", response_schema=RecommendationList)` — Gemini returns clean structured JSON natively, `model_validate_json(llm_raw)` called directly |
+
+Using `response_schema` eliminates the fragile string manipulation entirely and guarantees the response conforms to the `RecommendationList` shape before it even reaches the application.
