@@ -1,7 +1,13 @@
-# LLD 03 — Exponential Retry & Fallback
+# LLD 05 — Exponential Retry & Fallback
 
 **Files covered:**
 `src/core/retry.py` · `src/services/market_data.py` · `src/services/zerodha_client.py` · `src/services/llm_advisor.py`
+
+**Cross-references:**
+- `retry_call()` used in Zerodha client → [LLD 01 §2](./01_phase1_auth_and_holdings.md#_make_enctoken_requestpath-str---tupleoptionaldict-optionalstr)
+- `@retry` used in market data providers → [LLD 02 §1](./02_phase2_analytics_engine.md#_fetch_nsepythonsymbol-str---optionaldict)
+- `@retry` used in Gemini/Ollama callers → [LLD 03 §3.3](./03_phase3_ai_advisory.md#33-_call_gemini)
+- Log lines emitted by retry → [LLD 04 §5](./04_logging.md#5-log-levels-used-across-the-application)
 
 ---
 
@@ -20,7 +26,7 @@
 
 ## 2. `src/core/retry.py` — Shared Retry Utility
 
-**New file.** Two public interfaces used across the application.
+Two public interfaces used across the application.
 
 ### 2.1 `@retry(...)` Decorator
 
@@ -91,6 +97,8 @@ Without jitter, all concurrent symbol fetches (e.g. 7 holdings being enriched si
 
 Both provider fetchers define an inner `@retry`-decorated closure around the network call. The existing 4-tier fallback chain is preserved — retry is layered **inside** each tier, not across tiers.
 
+Full provider chain spec → [LLD 02 §1](./02_phase2_analytics_engine.md#get_stock_fundamental_datasymbol-str---dict)
+
 ### Fallback chain (unchanged)
 
 ```
@@ -116,7 +124,7 @@ Generic defaults
 
 ## 4. `zerodha_client.py` — Enctoken Request Retry
 
-`_make_enctoken_request()` was refactored to use `retry_call()` per endpoint URL.
+`_make_enctoken_request()` uses `retry_call()` per endpoint URL. Full method spec → [LLD 01 §2](./01_phase1_auth_and_holdings.md#_make_enctoken_requestpath-str---tupleoptionaldict-optionalstr).
 
 ### Retry policy
 
@@ -183,7 +191,7 @@ The outer `@retry` is configured with `retryable_on=(_GeminiRateLimitError,)` �
 | `400` (bad request) | Fail fast — no retry — fall back to rule engine |
 | Auth / key error | Fail fast — no retry — fall back to rule engine |
 
-This matches the explicit recommendation in `docs/Gemini_api_doc.md` (Troubleshooting section): *"enforce exponential backoff and jitter on retries"* for 429 errors.
+This matches the explicit recommendation in [api-references/Gemini_api_doc.md](../api-references/Gemini_api_doc.md#troubleshooting--best-practices): *"enforce exponential backoff and jitter on retries"* for 429 errors.
 
 ### 5.2 Ollama — General Retry
 
@@ -205,4 +213,4 @@ _rule_based_recommendations()   ← deterministic, no external calls
 response with source="rule_engine"
 ```
 
-The UI displays a fallback indicator banner when `source == "rule_engine"` so the user knows the LLM was unavailable.
+The UI displays a fallback indicator banner when `source == "rule_engine"` so the user knows the LLM was unavailable. Fallback logic spec → [LLD 03 §3.5](./03_phase3_ai_advisory.md#35-_rule_based_recommendations--deterministic-fallback).

@@ -1,13 +1,20 @@
-# LLD 01 — Phase 3: AI Advisory Engine
+# LLD 03 — Phase 3: AI Advisory Engine
 
 **Files covered:**
 `src/core/config.py` · `src/services/rebalancer.py` · `src/services/llm_advisor.py` · `src/api/advisory.py` · `src/main.py` · `src/ui/app.py` · `requirements.txt` · `.env.example`
+
+**Cross-references:**
+- Config base fields (Phase 1) → [LLD 01 §1](./01_phase1_auth_and_holdings.md#1-srccoreconfpy--settings)
+- Holdings enrichment input (Phase 2) → [LLD 02 §1](./02_phase2_analytics_engine.md#enrich_holdings_with_fundamentalsholdings-listdict---listdict)
+- Retry policies for Gemini & Ollama → [LLD 05 §5](./05_retry_and_fallback.md#5-llm_advisorpy--gemini--ollama-retry)
+- Log lines emitted here → [LLD 04 §3](./04_logging.md#advisorypy)
+- Gemini SDK integration reference → [api-references/Gemini_api_doc.md](../api-references/Gemini_api_doc.md)
 
 ---
 
 ## 1. `src/core/config.py` — LLM Settings
 
-**What changed:** Added 4 new fields to the `Settings` class.
+Added 4 new fields to the `Settings` class (base fields documented in [LLD 01 §1](./01_phase1_auth_and_holdings.md#1-srccoreconfpy--settings)):
 
 | Field | Type | Default | Description |
 |---|---|---|---|
@@ -16,7 +23,7 @@
 | `OLLAMA_BASE_URL` | `str` | `"http://localhost:11434"` | Base URL for self-hosted Ollama instance |
 | `OLLAMA_MODEL` | `str` | `"mistral"` | Ollama model name (e.g. `mistral`, `llama3`) |
 
-**Design note:** `GEMINI_API_KEY` is read from `.env` via `python-dotenv` and then pushed into `os.environ` inside `_call_gemini()` using `os.environ.setdefault()` so the `google-genai` SDK can auto-resolve it — matching the documented pattern in `docs/Gemini_api_doc.md`.
+**Design note:** `GEMINI_API_KEY` is pushed into `os.environ` inside `_call_gemini()` via `os.environ.setdefault()` so the `google-genai` SDK can auto-resolve it — matching the documented pattern in [api-references/Gemini_api_doc.md](../api-references/Gemini_api_doc.md#api-key-configuration).
 
 ---
 
@@ -30,7 +37,7 @@
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `holdings` | `List[Dict]` | — | Enriched holdings list from `market_data_service` |
+| `holdings` | `List[Dict]` | — | Enriched holdings list from `market_data_service` — see [LLD 02 §1](./02_phase2_analytics_engine.md#enrich_holdings_with_fundamentalsholdings-listdict---listdict) |
 | `max_single_stock_pct` | `float` | `15.0` | Max allowed weight % for any single stock |
 | `max_sector_pct` | `float` | `25.0` | Max allowed weight % for any single sector |
 
@@ -91,7 +98,7 @@ Absolute ₹ values are **never** included in the LLM payload. Only the followin
 - `weight_pct` — relative portfolio weight %
 - `sector`, `cap_category`
 - `pe_ratio`, `pb_ratio`, `roe_pct`, `div_yield_pct`
-- `trend_200_sma`
+- `trend_200_sma` — sourced from `enrich_holdings_with_fundamentals()` in [LLD 02 §1](./02_phase2_analytics_engine.md#enrich_holdings_with_fundamentalsholdings-listdict---listdict)
 
 Rule engine flag details are appended as a plain-text summary list at the end of the prompt.
 
@@ -104,7 +111,7 @@ Rule engine flag details are appended as a plain-text summary list at the end of
 | Output mode | `response_mime_type="application/json"` + `response_schema=RecommendationList` |
 | Temperature | `0.2` — low for deterministic financial output |
 | Max tokens | `2048` |
-| Retry | 3 attempts, **429 only** — all other errors fail fast |
+| Retry | 3 attempts, **429 only** — full spec in [LLD 05 §5.1](./05_retry_and_fallback.md#51-gemini--429-only-retry) |
 
 ### 3.4 `_call_ollama()`
 
@@ -113,7 +120,7 @@ Rule engine flag details are appended as a plain-text summary list at the end of
 | Endpoint | `{OLLAMA_BASE_URL}/api/generate` |
 | Stream | `False` |
 | Timeout | 60 seconds |
-| Retry | 3 attempts on any exception |
+| Retry | 3 attempts on any exception — full spec in [LLD 05 §5.2](./05_retry_and_fallback.md#52-ollama--general-retry) |
 
 ### 3.5 `_rule_based_recommendations()` — Deterministic Fallback
 
@@ -161,6 +168,8 @@ Pure fallback — no external calls. Maps rule flags to actions:
 }
 ```
 
+Log lines → [LLD 04 §3](./04_logging.md#advisorypy)
+
 ---
 
 ## 5. `src/main.py` — Router Registration
@@ -170,6 +179,8 @@ Added:
 from src.api.advisory import router as advisory_router
 app.include_router(advisory_router)
 ```
+
+Full `main.py` spec → [LLD 01 §5](./01_phase1_auth_and_holdings.md#5-srcmainpy--fastapi-application-entry-point)
 
 ---
 
@@ -232,7 +243,7 @@ OLLAMA_MODEL=mistral
 
 ## 9. Gemini API Bug Fixes
 
-Three bugs found by comparing the implementation against `docs/Gemini_api_doc.md`:
+Three bugs found by comparing the implementation against [api-references/Gemini_api_doc.md](../api-references/Gemini_api_doc.md):
 
 ### Bug 1 — Wrong model name
 
@@ -255,7 +266,7 @@ The official doc shows the SDK auto-resolves `GEMINI_API_KEY` from the environme
 
 | | Approach |
 |---|---|
-| Before | Manually stripped markdown fences (` ``` `) from response text, then called `json.loads()` |
+| Before | Manually stripped markdown fences from response text, then called `json.loads()` |
 | After | `types.GenerateContentConfig(response_mime_type="application/json", response_schema=RecommendationList)` — Gemini returns clean structured JSON natively, `model_validate_json(llm_raw)` called directly |
 
-Using `response_schema` eliminates the fragile string manipulation entirely and guarantees the response conforms to the `RecommendationList` shape before it even reaches the application.
+Using `response_schema` eliminates the fragile string manipulation entirely and guarantees the response conforms to the `RecommendationList` shape before it even reaches the application. See [Structured JSON Output example](../api-references/Gemini_api_doc.md#6-structured-json-output-pydantic).

@@ -4,11 +4,17 @@ An intelligent, AI-powered personal financial portfolio assistant designed for Z
 
 ---
 
-## 📄 Architecture & High-Level Design
+## 📄 Documentation
 
-For a comprehensive architectural breakdown, sequence diagrams, security policies, and database schema, please refer to the High-Level Design document:
+👉 **[Documentation Index](./docs/README.md)** — full directory of all docs
 
-👉 **[High-Level Design Document (HLD.md)](./docs/HLD.md)**
+| Document | Description |
+|---|---|
+| [HLD](./docs/architecture/HLD.md) | System architecture, data flow diagrams, DB schema, security policies |
+| [Architecture Review](./docs/architecture/ARCHITECTURE_REVIEW.md) | Design issues, gaps, and recommendations |
+| [LLD Index](./docs/lld/00_INDEX.md) | Low-level design for all source files, phase by phase |
+| [Zerodha Setup Guide](./docs/guides/zerodha_api_setup_guide.md) | Free vs paid API access, enctoken setup |
+| [Gemini SDK Reference](./docs/api-references/Gemini_api_doc.md) | Google Gemini Python SDK integration guide |
 
 ---
 
@@ -36,22 +42,48 @@ For a comprehensive architectural breakdown, sequence diagrams, security policie
 ## 📂 Project Directory Structure
 
 ```text
-portfolio_assistant/
-├── HLD.md                  # High-Level System Architecture Document
-├── README.md               # Setup & User Guide (this file)
-├── requirements.txt        # Python dependencies
-├── .env.example            # Environment variables configuration template
+portfolio-assistant/
+├── README.md                        # Setup & user guide (this file)
+├── requirements.txt                 # Python dependencies
+├── .env.example                     # Environment variables template
+├── docs/
+│   ├── README.md                    # Documentation index
+│   ├── architecture/
+│   │   ├── HLD.md                   # High-level system architecture
+│   │   └── ARCHITECTURE_REVIEW.md   # Design review & recommendations
+│   ├── lld/
+│   │   ├── 00_INDEX.md              # LLD index + file coverage map
+│   │   ├── 01_phase1_auth_and_holdings.md
+│   │   ├── 02_phase2_analytics_engine.md
+│   │   ├── 03_phase3_ai_advisory.md
+│   │   ├── 04_logging.md
+│   │   ├── 05_retry_and_fallback.md
+│   │   └── 06_file_change_summary.md
+│   ├── plans/                       # Per-phase implementation plans
+│   ├── guides/
+│   │   └── zerodha_api_setup_guide.md
+│   └── api-references/
+│       └── Gemini_api_doc.md
 └── src/
-    ├── api/                # FastAPI Routers
-    │   ├── auth.py         # Zerodha OAuth login & callback handler
-    │   └── holdings.py     # Holdings, positions & margins REST APIs
+    ├── api/                         # FastAPI routers
+    │   ├── auth.py                  # Zerodha OAuth login & callback
+    │   ├── holdings.py              # Holdings, positions & margins
+    │   ├── analytics.py             # Performance, fundamentals & tax
+    │   └── advisory.py              # AI recommendations endpoint
     ├── core/
-    │   └── config.py       # Pydantic/dotenv settings manager
+    │   ├── config.py                # Settings manager
+    │   ├── logging_config.py        # Centralised logging setup
+    │   └── retry.py                 # Exponential backoff utility
     ├── services/
-    │   └── zerodha_client.py # Zerodha KiteConnect wrapper & demo engine
-    ├── main.py             # FastAPI backend entrypoint
+    │   ├── zerodha_client.py        # Kite Connect wrapper & demo engine
+    │   ├── market_data.py           # NSE/yfinance fundamentals fetcher
+    │   ├── analytics_engine.py      # XIRR, Sharpe, Beta calculations
+    │   ├── tax_harvesting.py        # STCG/LTCG tax analyser
+    │   ├── rebalancer.py            # Deterministic rule engine
+    │   └── llm_advisor.py           # Gemini/Ollama advisory service
+    ├── main.py                      # FastAPI entrypoint
     └── ui/
-        └── app.py          # Streamlit dashboard application
+        └── app.py                   # Streamlit dashboard
 ```
 
 ---
@@ -60,7 +92,7 @@ portfolio_assistant/
 
 ### 1. Prerequisites
 - Python 3.10 or higher
-- Zerodha Developer Account & Kite Connect API Credentials (optional for Demo Mode). See the detailed step-by-step guide: [Zerodha API Key & Secret Setup Guide](./docs/zerodha_api_setup_guide.md).
+- Zerodha Developer Account & Kite Connect API Credentials (optional for Demo Mode). See the detailed step-by-step guide: [Zerodha API Key & Secret Setup Guide](./docs/guides/zerodha_api_setup_guide.md).
 
 ### 2. Environment Setup
 

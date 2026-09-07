@@ -1,13 +1,18 @@
-# LLD 02 — Logging Infrastructure
+# LLD 04 — Logging Infrastructure
 
 **Files covered:**
 `src/core/logging_config.py` · `src/main.py` · `src/api/holdings.py` · `src/api/analytics.py` · `src/api/auth.py` · `src/api/advisory.py` · `src/services/zerodha_client.py` · `src/services/market_data.py` · `src/services/analytics_engine.py` · `src/services/llm_advisor.py` · `.gitignore`
+
+**Cross-references:**
+- `setup_logging()` called from → [LLD 01 §5](./01_phase1_auth_and_holdings.md#5-srcmainpy--fastapi-application-entry-point)
+- Known logger name issue in `tax_harvesting.py` → [LLD 02 §3](./02_phase2_analytics_engine.md#3-srcservicestax_harvestingpy--tax-harvesting-analyzer)
+- Retry warning/error log lines → [LLD 05 §2.5](./05_retry_and_fallback.md#25-logging-behaviour)
 
 ---
 
 ## 1. `src/core/logging_config.py` — Central Setup
 
-**New file.** Single `setup_logging(level)` function called once at application startup in `main.py`. All other modules obtain their logger via `logging.getLogger("portfolio_assistant.<module>")`.
+Single `setup_logging(level)` function called once at application startup in `main.py`. All other modules obtain their logger via `logging.getLogger("portfolio_assistant.<module>")`.
 
 ### Configuration
 
@@ -65,7 +70,7 @@ logging.getLogger("portfolio_assistant").setLevel(logging.DEBUG)
 
 ### `request_tracing_middleware`
 
-A new `@app.middleware("http")` wraps every incoming request with structured tracing.
+A `@app.middleware("http")` wraps every incoming request with structured tracing.
 
 **On request entry:**
 ```
@@ -100,9 +105,11 @@ A new `@app.middleware("http")` wraps every incoming request with structured tra
 
 ## 3. API Routers — Structured Log Lines
 
-All 4 routers updated with `logging.getLogger("portfolio_assistant.api.<name>")`. Every endpoint logs meaningful business values — not just "request received".
+All 4 routers use `logging.getLogger("portfolio_assistant.api.<name>")`. Every endpoint logs meaningful business values — not just "request received".
 
 ### `holdings.py`
+
+Router spec → [LLD 01 §4](./01_phase1_auth_and_holdings.md#4-srcapiholdingspy--holdings--portfolio-router)
 
 | Level | Trigger | Fields logged |
 |---|---|---|
@@ -116,6 +123,8 @@ INFO | portfolio_assistant.api.holdings | Holdings fetched — count=7 is_live=T
 ```
 
 ### `analytics.py`
+
+Router spec → [LLD 02 §4](./02_phase2_analytics_engine.md#4-srcapianalyticspy--analytics-router)
 
 | Level | Trigger | Fields logged |
 |---|---|---|
@@ -131,6 +140,8 @@ INFO | portfolio_assistant.api.analytics | Performance metrics — xirr=18.42% b
 
 ### `auth.py`
 
+Router spec → [LLD 01 §3](./01_phase1_auth_and_holdings.md#3-srcapiauthpy--authentication-router)
+
 | Level | Trigger | Message |
 |---|---|---|
 | `INFO` | Login URL generated | `"Login URL generated"` |
@@ -141,6 +152,8 @@ INFO | portfolio_assistant.api.analytics | Performance metrics — xirr=18.42% b
 | `ERROR` | OAuth callback failed | Exception message + stack trace |
 
 ### `advisory.py`
+
+Router spec → [LLD 03 §4](./03_phase3_ai_advisory.md#4-srcapiadvisorypy--advisory-rest-endpoint)
 
 | Level | Trigger | Fields logged |
 |---|---|---|
@@ -158,7 +171,7 @@ INFO | portfolio_assistant.api.advisory | Advisory complete — source=llm rule_
 
 ## 4. Services — Logger Hierarchy Alignment
 
-All service loggers renamed from flat strings to the `portfolio_assistant.*` hierarchy so they inherit the root handler configuration set up by `setup_logging()`.
+All service loggers renamed to the `portfolio_assistant.*` hierarchy so they inherit the root handler configuration set up by `setup_logging()`.
 
 | File | Logger before | Logger after |
 |---|---|---|
@@ -166,6 +179,7 @@ All service loggers renamed from flat strings to the `portfolio_assistant.*` hie
 | `market_data.py` | `"market_data"` | `"portfolio_assistant.market_data"` |
 | `analytics_engine.py` | `"analytics_engine"` | `"portfolio_assistant.analytics_engine"` |
 | `llm_advisor.py` | `"llm_advisor"` | `"portfolio_assistant.llm_advisor"` |
+| `tax_harvesting.py` | `"tax_harvesting"` | ⚠️ **Still incorrect** — needs fix to `"portfolio_assistant.tax_harvesting"` |
 
 ---
 
