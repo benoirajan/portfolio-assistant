@@ -4,8 +4,9 @@ import urllib.request
 import json
 from typing import Dict, List, Any, Optional, Tuple
 from src.core.config import settings
+from src.core.retry import retry_call
 
-logger = logging.getLogger("zerodha_service")
+logger = logging.getLogger("portfolio_assistant.zerodha_client")
 
 # Sample demo holdings reflecting Indian market equity portfolio
 DEMO_HOLDINGS = [
@@ -217,22 +218,35 @@ class ZerodhaService:
 
         last_error = None
         for url in endpoints:
-            try:
+            def _do_request(url=url):
                 req = urllib.request.Request(url)
                 req.add_header("Authorization", f"enctoken {self.enctoken}")
                 req.add_header("Cookie", f"enctoken={self.enctoken}")
                 req.add_header("X-Kite-Version", "3")
-                req.add_header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-
+                req.add_header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
                 with urllib.request.urlopen(req, timeout=10) as response:
                     if response.status == 200:
-                        body = response.read().decode('utf-8')
-                        return json.loads(body), None
+                        return json.loads(response.read().decode("utf-8"))
+                raise RuntimeError(f"Unexpected status from {url}")
+
+            try:
+                result = retry_call(
+                    _do_request,
+                    max_attempts=3,
+                    base_delay=1.0,
+                    multiplier=2.0,
+                    retryable_on=(urllib.error.URLError, TimeoutError, ConnectionError),
+                )
+                if result and result.get("status") == "success":
+                    return result, None
+                last_error = result.get("message", "Unknown error") if result else "Empty response"
             except urllib.error.HTTPError as e:
-                err_body = e.read().decode('utf-8') if e.fp else ""
+                err_body = e.read().decode("utf-8") if e.fp else ""
                 last_error = f"HTTP {e.code}: {err_body or e.reason}"
+                logger.warning("Enctoken request to %s failed (HTTP %d) — not retrying", url, e.code)
             except Exception as e:
                 last_error = str(e)
+                logger.warning("Enctoken request to %s failed after retries: %s", url, e)
 
         return None, last_error
 

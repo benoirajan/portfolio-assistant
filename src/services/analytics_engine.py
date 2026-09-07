@@ -3,7 +3,7 @@ import logging
 import datetime
 from typing import Dict, List, Any, Optional
 
-logger = logging.getLogger("analytics_engine")
+logger = logging.getLogger("portfolio_assistant.analytics_engine")
 
 RISK_FREE_RATE = 0.071  # Indian 10-Year G-Sec yield ~7.1%
 

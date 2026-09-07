@@ -3,8 +3,9 @@ import time
 import requests
 from typing import Dict, List, Any, Optional
 from src.core.config import settings
+from src.core.retry import retry
 
-logger = logging.getLogger("market_data")
+logger = logging.getLogger("portfolio_assistant.market_data")
 
 # TTL cache: {symbol: (data, expiry_timestamp)}
 _FUNDAMENTALS_CACHE: Dict[str, tuple] = {}
@@ -68,7 +69,11 @@ class MarketDataService:
         if not nse:
             return None
         try:
-            quote = nse.nse_eq(symbol)
+            @retry(max_attempts=3, base_delay=1.0, multiplier=2.0,
+                   retryable_on=(Exception,))
+            def _fetch():
+                return nse.nse_eq(symbol)
+            quote = _fetch()
             info  = quote.get("priceInfo", {})
             meta  = quote.get("metadata", {})
             ind   = quote.get("industryInfo", {})
@@ -92,7 +97,7 @@ class MarketDataService:
                 "sma_200":      sma,
             }
         except Exception as e:
-            logger.warning(f"nsepython fetch failed for {symbol}: {e}")
+            logger.warning("nsepython fetch failed for %s after retries: %s", symbol, e)
             return None
 
     # ------------------------------------------------------------------
@@ -103,8 +108,12 @@ class MarketDataService:
         if not yf:
             return None
         try:
-            ticker = yf.Ticker(f"{symbol}.NS")
-            info = ticker.info
+            @retry(max_attempts=3, base_delay=2.0, multiplier=2.0,
+                   retryable_on=(Exception,))
+            def _fetch():
+                t = yf.Ticker(f"{symbol}.NS")
+                return t.info
+            info = _fetch()
             if not info or "trailingPE" not in info:
                 return None
             return {
@@ -118,7 +127,7 @@ class MarketDataService:
                 "sma_200":      round(float(info.get("twoHundredDayAverage", 0) or 0), 2),
             }
         except Exception as e:
-            logger.warning(f"yfinance fallback failed for {symbol}: {e}")
+            logger.warning("yfinance fallback failed for %s after retries: %s", symbol, e)
             return None
 
     # ------------------------------------------------------------------
