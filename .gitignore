@@ -1,30 +1,33 @@
-# Environment & secrets
+# ── Environment & secrets ──────────────────────────────────────────────────────
 .env
 .env.*
 !.env.example
 
-# Virtual environment
+# ── Python (backend) ───────────────────────────────────────────────────────────
 .venv/
 venv/
 env/
-
-# Python cache
 __pycache__/
 *.py[cod]
-
-# Distribution / build
+*.egg-info/
 dist/
 build/
-*.egg-info/
 
-# IDE
+# ── Node / React (frontend) ────────────────────────────────────────────────────
+node_modules/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+
+# ── Logs ───────────────────────────────────────────────────────────────────────
+logs/
+*.log
+
+# ── IDE ────────────────────────────────────────────────────────────────────────
 .vscode/
 .idea/
 
-# OS
+# ── OS ─────────────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
-
-# Logs
-logs/
-*.log
