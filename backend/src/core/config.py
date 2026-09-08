@@ -20,5 +20,9 @@ class Settings:
     GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
     OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
     OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "mistral")
+    # Cache
+    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    HOLDINGS_CACHE_TTL: int = int(os.getenv("HOLDINGS_CACHE_TTL", "300"))   # 5 min
+    ADVISORY_CACHE_TTL: int = int(os.getenv("ADVISORY_CACHE_TTL", "1800"))  # 30 min
 
 settings = Settings()

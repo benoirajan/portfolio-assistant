@@ -59,3 +59,4 @@ docs/
 | Phase 2 — Analytics Engine | [plan](./plans/phase_2_fundamental_and_sector_analytics.md) | [lld](./lld/02_phase2_analytics_engine.md) | ✅ | Complete |
 | Phase 3 — AI Advisory | [plan](./plans/phase_3_ai_advisory_engine.md) | [lld](./lld/03_phase3_ai_advisory.md) | ✅ | Complete |
 | Phase 4 — Order Staging & Alerts | [plan](./plans/phase_4_order_staging_and_alerts.md) | — | ❌ | Not started |
+| Phase 5 — React Frontend | [plan](./plans/phase_5_react_frontend.md) | [lld](./lld/07_phase5_react_frontend.md) | ✅ | In progress (`feature/react-frontend`) |
