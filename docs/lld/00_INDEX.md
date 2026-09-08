@@ -15,6 +15,7 @@
 | 5 | [05_retry_and_fallback.md](./05_retry_and_fallback.md) | Cross-cutting | Shared retry utility, per-service retry policies, fail-fast rules, jitter rationale |
 | 6 | [06_file_change_summary.md](./06_file_change_summary.md) | Session log | All files added/modified in the Phase 3 session with links to relevant LLD sections |
 | 7 | [07_phase5_react_frontend.md](./07_phase5_react_frontend.md) | Phase 5 | Next.js app structure, all components, hooks, API client, type definitions |
+| 8 | [08_cache_layer.md](./08_cache_layer.md) | Cross-cutting | Redis cache client, key conventions, TTLs, graceful degradation, token security |
 
 ---
 
@@ -25,6 +26,7 @@
 | `src/core/config.py` | [LLD 01 §1](./01_phase1_auth_and_holdings.md#1-srccoreconfpy--settings), [LLD 03 §1](./03_phase3_ai_advisory.md#1-srccoreconfpy--llm-settings) |
 | `src/core/logging_config.py` | [LLD 04 §1](./04_logging.md#1-srccorelogs_configpy--central-setup) |
 | `src/core/retry.py` | [LLD 05 §2](./05_retry_and_fallback.md#2-srccoretrypy--shared-retry-utility) |
+| `src/core/cache.py` | [LLD 08 §1](./08_cache_layer.md#1-backendsrccorecachepy--cache-client) |
 | `src/services/zerodha_client.py` | [LLD 01 §2](./01_phase1_auth_and_holdings.md#2-srcserviceszerodha_clientpy--zerodha-client-wrapper), [LLD 05 §4](./05_retry_and_fallback.md#4-zerodha_clientpy--enctoken-request-retry) |
 | `src/services/market_data.py` | [LLD 02 §1](./02_phase2_analytics_engine.md#1-srcservicesmarket_datapy--market-data-service), [LLD 05 §3](./05_retry_and_fallback.md#3-market_datapy--nsepython--yfinance-retry) |
 | `src/services/analytics_engine.py` | [LLD 02 §2](./02_phase2_analytics_engine.md#2-srcservicesanalytics_enginepy--quantitative-analytics-engine) |
