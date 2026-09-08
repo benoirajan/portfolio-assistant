@@ -135,6 +135,9 @@ def _call_gemini(prompt: str) -> Optional[str]:
             max_output_tokens=2048,
         )
 
+        logger.info("Sending request to Gemini API (model=%s, prompt_len=%d)", settings.GEMINI_MODEL, len(prompt))
+        logger.debug("Gemini Prompt Payload:\n%s", prompt)
+
         @retry(
             max_attempts=3,
             base_delay=2.0,
@@ -145,7 +148,7 @@ def _call_gemini(prompt: str) -> Optional[str]:
         def _generate():
             try:
                 return client.models.generate_content(
-                    model="gemini-3.6-flash",
+                    model=settings.GEMINI_MODEL,
                     contents=prompt,
                     config=config,
                 )
@@ -156,7 +159,10 @@ def _call_gemini(prompt: str) -> Optional[str]:
                 raise  # 404, 400, auth errors — fail fast, no retry
 
         response = _generate()
-        return response.text
+        raw_text = response.text
+        logger.info("Received response from Gemini API (raw_len=%d)", len(raw_text) if raw_text else 0)
+        logger.debug("Gemini Raw Response:\n%s", raw_text)
+        return raw_text
     except Exception as e:
         logger.error("Gemini API call failed after retries: %s", e)
         return None
@@ -165,6 +171,9 @@ def _call_gemini(prompt: str) -> Optional[str]:
 def _call_ollama(prompt: str) -> Optional[str]:
     try:
         import requests
+
+        logger.info("Sending request to Ollama API (model=%s, prompt_len=%d)", settings.OLLAMA_MODEL, len(prompt))
+        logger.debug("Ollama Prompt Payload:\n%s", prompt)
 
         @retry(max_attempts=3, base_delay=2.0, multiplier=2.0,
                retryable_on=(Exception,))
@@ -177,7 +186,10 @@ def _call_ollama(prompt: str) -> Optional[str]:
             resp.raise_for_status()
             return resp.json().get("response", "")
 
-        return _generate()
+        raw_res = _generate()
+        logger.info("Received response from Ollama API (raw_len=%d)", len(raw_res) if raw_res else 0)
+        logger.debug("Ollama Raw Response:\n%s", raw_res)
+        return raw_res
     except Exception as e:
         logger.error("Ollama API call failed after retries: %s", e)
         return None
@@ -248,7 +260,7 @@ def get_recommendations(
     if settings.LLM_PROVIDER == "gemini" and settings.GEMINI_API_KEY:
         prompt = _build_prompt(holdings, rule_flags, investment_goal, total_value)
         llm_raw = _call_gemini(prompt)
-        llm_provider = "gemini-3.6-flash"
+        llm_provider = settings.GEMINI_MODEL
     elif settings.LLM_PROVIDER == "ollama":
         prompt = _build_prompt(holdings, rule_flags, investment_goal, total_value)
         llm_raw = _call_ollama(prompt)
@@ -258,29 +270,32 @@ def get_recommendations(
 
     if llm_raw:
         try:
+            logger.info("Parsing LLM response — raw_len=%d", len(llm_raw))
             parsed = RecommendationList.model_validate_json(llm_raw)
 
             # Guardrail: reject hallucinated symbols
             valid_recs = [r for r in parsed.recommendations if r.symbol in known_symbols]
             if len(valid_recs) < len(parsed.recommendations):
-                logger.warning("LLM hallucinated unknown symbols — filtered out.")
+                logger.warning("LLM hallucinated %d unknown symbols — filtered out.", len(parsed.recommendations) - len(valid_recs))
 
             # Guardrail: small-cap allocation cap
             for r in valid_recs:
                 h_match = next((h for h in holdings if h.get("tradingsymbol") == r.symbol), {})
                 if h_match.get("cap_category", "") in ("Small Cap", "Mid Cap") and r.target_allocation_pct > 20.0:
-                    logger.warning(f"Small/mid-cap {r.symbol} allocation {r.target_allocation_pct}% capped at 20%.")
+                    logger.warning("Small/mid-cap %s allocation %.1f%% capped at 20%%.", r.symbol, r.target_allocation_pct)
                     r.target_allocation_pct = 20.0
 
             recs = [r.model_dump() | {"source": "llm"} for r in valid_recs]
             source = "llm"
+            logger.info("LLM recommendations validated successfully — count=%d", len(recs))
         except Exception as e:
-            logger.error(f"LLM response validation failed: {e}. Falling back to rule engine.")
+            logger.error("LLM response validation failed: %s. Falling back to rule engine.", e)
 
     if not recs:
         recs = _rule_based_recommendations(holdings, rule_flags, total_value)
         source = "rule_engine"
         llm_provider = None
+        logger.info("Generated rule-based recommendations fallback — count=%d", len(recs))
 
     return {
         "recommendations": recs,

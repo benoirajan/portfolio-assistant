@@ -167,19 +167,42 @@ INFO | portfolio_assistant.api.advisory | Advisory request — goal='Moderate Gr
 INFO | portfolio_assistant.api.advisory | Advisory complete — source=llm rule_flags=2 recommendations=7
 ```
 
+### `llm_advisor.py` (AI Traceability Logging)
+
+| Level | Trigger | Fields / Content logged |
+|---|---|---|
+| `INFO` | LLM request initiated | `model`, `prompt_len` |
+| `DEBUG` | LLM prompt built | Full prompt payload sent to AI backend |
+| `INFO` | LLM response received | `raw_len` |
+| `DEBUG` | LLM raw output | Complete raw response string received from AI backend |
+| `INFO` | Response parsed | `raw_len`, `recommendations_count` |
+| `WARNING` | Guardrails triggered | Hallucinated symbol count or small/mid-cap allocation cap adjustments |
+| `ERROR` | Validation / API failure | Exception message and fallback notification |
+
+Example:
+```
+INFO  | portfolio_assistant.llm_advisor | Sending request to Gemini API (model=gemini-3.6-flash, prompt_len=1420)
+DEBUG | portfolio_assistant.llm_advisor | Gemini Prompt Payload:
+...
+INFO  | portfolio_assistant.llm_advisor | Received response from Gemini API (raw_len=850)
+DEBUG | portfolio_assistant.llm_advisor | Gemini Raw Response:
+...
+INFO  | portfolio_assistant.llm_advisor | LLM recommendations validated successfully — count=5
+```
+
 ---
 
 ## 4. Services — Logger Hierarchy Alignment
 
 All service loggers renamed to the `portfolio_assistant.*` hierarchy so they inherit the root handler configuration set up by `setup_logging()`.
 
-| File | Logger before | Logger after |
-|---|---|---|
-| `zerodha_client.py` | `"zerodha_service"` | `"portfolio_assistant.zerodha_client"` |
-| `market_data.py` | `"market_data"` | `"portfolio_assistant.market_data"` |
-| `analytics_engine.py` | `"analytics_engine"` | `"portfolio_assistant.analytics_engine"` |
-| `llm_advisor.py` | `"llm_advisor"` | `"portfolio_assistant.llm_advisor"` |
-| `tax_harvesting.py` | `"tax_harvesting"` | ⚠️ **Still incorrect** — needs fix to `"portfolio_assistant.tax_harvesting"` |
+| File | Logger before | Logger after | Status |
+|---|---|---|---|
+| `zerodha_client.py` | `"zerodha_service"` | `"portfolio_assistant.zerodha_client"` | ✅ Aligned |
+| `market_data.py` | `"market_data"` | `"portfolio_assistant.market_data"` | ✅ Aligned |
+| `analytics_engine.py` | `"analytics_engine"` | `"portfolio_assistant.analytics_engine"` | ✅ Aligned |
+| `llm_advisor.py` | `"llm_advisor"` | `"portfolio_assistant.llm_advisor"` | ✅ Aligned |
+| `tax_harvesting.py` | `"tax_harvesting"` | `"portfolio_assistant.tax_harvesting"` | ✅ Aligned |
 
 ---
 
@@ -187,8 +210,8 @@ All service loggers renamed to the `portfolio_assistant.*` hierarchy so they inh
 
 | Level | Where used |
 |---|---|
-| `DEBUG` | Health check calls, enriched holdings count in advisory |
-| `INFO` | Request tracing (→/←), startup/shutdown, all successful business operations with key metric values |
+| `DEBUG` | Health check calls, enriched holdings count in advisory, full AI prompt payload sent to Gemini/Ollama, raw string response returned from Gemini/Ollama |
+| `INFO` | Request tracing (→/←), startup/shutdown, all successful business operations with key metric values, AI generation initiation & response length, validation success |
 | `WARNING` | Holdings fetch warnings from Zerodha, LLM hallucinated symbols filtered, small-cap cap enforcement, nsepython/yfinance fetch failures, retry attempts |
 | `ERROR` | Unhandled middleware exceptions, all `except` blocks with `exc_info=True`, Gemini/Ollama API failures after retries, LLM validation failures |
 

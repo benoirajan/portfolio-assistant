@@ -13,7 +13,7 @@ LOG_FORMAT = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 
-def setup_logging(level: str = "INFO") -> None:
+def setup_logging(level: str = "DEBUG") -> None:
     os.makedirs(LOG_DIR, exist_ok=True)
 
     formatter = logging.Formatter(fmt=LOG_FORMAT, datefmt=DATE_FORMAT)

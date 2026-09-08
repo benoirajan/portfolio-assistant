@@ -40,6 +40,4 @@
 
 ## Open Issues
 
-| Issue | File | Details |
-|---|---|---|
-| ⚠️ Wrong logger name | `src/services/tax_harvesting.py` | Logger is `"tax_harvesting"` — should be `"portfolio_assistant.tax_harvesting"`. See [LLD 04 §4](./04_logging.md#4-services--logger-hierarchy-alignment). |
+*No active cross-cutting logger issues.* All loggers aligned to `portfolio_assistant.*` namespace.

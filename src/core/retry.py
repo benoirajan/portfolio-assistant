@@ -17,7 +17,13 @@ from typing import Callable, Tuple, Type, Any, Optional
 logger = logging.getLogger("portfolio_assistant.retry")
 
 
-def _should_retry(exc: Exception, retryable_on: Tuple[Type[Exception], ...]) -> bool:
+def _should_retry(
+    exc: Exception,
+    retryable_on: Tuple[Type[Exception], ...],
+    exclude_on: Tuple[Type[Exception], ...] = (),
+) -> bool:
+    if exclude_on and isinstance(exc, exclude_on):
+        return False
     return isinstance(exc, retryable_on)
 
 
@@ -28,6 +34,7 @@ def retry(
     max_delay: float = 30.0,
     jitter: bool = True,
     retryable_on: Tuple[Type[Exception], ...] = (Exception,),
+    exclude_on: Tuple[Type[Exception], ...] = (),
 ):
     """
     Decorator — retries the wrapped function with exponential backoff.
@@ -45,7 +52,7 @@ def retry(
                 try:
                     return fn(*args, **kwargs)
                 except Exception as exc:
-                    if attempt == max_attempts or not _should_retry(exc, retryable_on):
+                    if attempt == max_attempts or not _should_retry(exc, retryable_on, exclude_on):
                         logger.error(
                             "%s failed (attempt %d/%d, non-retryable or max reached): %s",
                             fn.__qualname__, attempt, max_attempts, exc,
@@ -72,6 +79,7 @@ def retry_call(
     max_delay: float = 30.0,
     jitter: bool = True,
     retryable_on: Tuple[Type[Exception], ...] = (Exception,),
+    exclude_on: Tuple[Type[Exception], ...] = (),
 ) -> Any:
     """Inline retry without decorator — useful for lambdas or dynamic calls."""
     kwargs = kwargs or {}
@@ -80,7 +88,7 @@ def retry_call(
         try:
             return fn(*args, **kwargs)
         except Exception as exc:
-            if attempt == max_attempts or not _should_retry(exc, retryable_on):
+            if attempt == max_attempts or not _should_retry(exc, retryable_on, exclude_on):
                 raise
             sleep = min(delay + (random.uniform(0, 0.5) if jitter else 0), max_delay)
             logger.warning(
