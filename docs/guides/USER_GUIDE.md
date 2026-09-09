@@ -184,6 +184,17 @@ AI-generated buy/sell/hold recommendations for each stock in your portfolio.
 
 > Recommendations are advisory only. No trades are placed automatically — you remain in full control of all buy/sell decisions.
 
+**Generating a Trade Basket:**
+1. Enter your **Max budget for buying** in the input field.
+2. Click **Generate Basket** to compute exact share quantities to buy, sell, or trim based on target allocations.
+
+**Exporting to Zerodha Baskets:**
+1. Once your trade basket is generated, scroll to the **Export to Zerodha Baskets** section.
+2. Choose **Create New Basket** (enter custom name) or **Add to Existing Basket** (select from dropdown).
+3. Click **Push to Zerodha Basket**.
+4. Once completed, click **Open Zerodha Kite Baskets** to open Zerodha in a new tab (`https://kite.zerodha.com/orders/baskets`).
+5. In Zerodha Kite, review the pre-filled basket items and execute manually whenever you wish. No automated trade execution takes place!
+
 ---
 
 ## Quick Reference

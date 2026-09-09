@@ -385,3 +385,20 @@ The official doc shows the SDK auto-resolves `GEMINI_API_KEY` from the environme
 | After | `types.GenerateContentConfig(response_mime_type="application/json", response_schema=RecommendationList)` — Gemini returns clean structured JSON natively, `model_validate_json(llm_raw)` called directly |
 
 Using `response_schema` eliminates the fragile string manipulation entirely and guarantees the response conforms to the `RecommendationList` shape before it even reaches the application. See [Structured JSON Output example](../api-references/Gemini_api_doc.md#6-structured-json-output-pydantic).
+
+---
+
+## 11. Exporting Baskets to Zerodha (`/orders/baskets`)
+
+The generated trade basket can be pushed directly into Zerodha Baskets without automated trade execution.
+
+### 11.1 Endpoints Added to `src/api/advisory.py`
+
+- `GET /api/v1/advisory/zerodha-baskets`: Fetches existing Zerodha baskets for dropdown selection.
+- `POST /api/v1/advisory/export-zerodha-basket`: Accepts basket name, optional basket ID, and items (`[{symbol, action, quantity}]`). Formats orders for NSE CNC MARKET trades and posts to Zerodha OMS `/orders/baskets`.
+
+### 11.2 Safety & Workflow
+
+1. **Non-Executing**: Uses Zerodha OMS Basket endpoints (`/orders/baskets`), never order placement endpoints (`/orders/regular`).
+2. **Manual Review**: Returns a direct link to `https://kite.zerodha.com/orders/baskets` where users review items and trigger manual execution when ready.
+3. **Demo Mode**: Gracefully simulates basket creation and returns mock basket IDs when running without live Zerodha sessions.

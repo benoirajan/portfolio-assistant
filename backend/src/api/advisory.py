@@ -2,7 +2,7 @@ import hashlib
 import json
 import logging
 import math
-from fastapi import APIRouter, Header, Query
+from fastapi import APIRouter, Header, Query, HTTPException
 from typing import List, Literal, Optional
 from pydantic import BaseModel, Field
 from src.services.zerodha_client import zerodha_service
@@ -173,4 +173,63 @@ def create_basket(
         total_buy_value=total_buy,
         total_sell_value=total_sell,
         budget_utilised_pct=utilised_pct,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Zerodha Basket Export models & endpoints
+# ---------------------------------------------------------------------------
+class ExportZerodhaBasketItem(BaseModel):
+    symbol: str
+    action: str
+    quantity: int
+
+
+class ExportZerodhaBasketRequest(BaseModel):
+    basket_name: str
+    basket_id: Optional[str] = None
+    items: List[ExportZerodhaBasketItem]
+
+
+class ExportZerodhaBasketResponse(BaseModel):
+    status: str
+    basket_id: str
+    basket_name: str
+    item_count: int
+    kite_url: str
+    message: str
+
+
+@router.get("/zerodha-baskets")
+def list_zerodha_baskets(x_enctoken: Optional[str] = Header(None)):
+    if x_enctoken:
+        zerodha_service.set_enctoken(x_enctoken)
+    baskets, err = zerodha_service.get_baskets()
+    return {"status": "success", "baskets": baskets, "error": err}
+
+
+@router.post("/export-zerodha-basket", response_model=ExportZerodhaBasketResponse)
+def export_zerodha_basket(
+    body: ExportZerodhaBasketRequest,
+    x_enctoken: Optional[str] = Header(None),
+):
+    if x_enctoken:
+        zerodha_service.set_enctoken(x_enctoken)
+
+    items_dict = [item.model_dump() for item in body.items]
+    res, err = zerodha_service.export_to_zerodha_basket(
+        basket_name=body.basket_name,
+        items=items_dict,
+        basket_id=body.basket_id,
+    )
+    if not res:
+        raise HTTPException(status_code=400, detail=err or "Failed to export basket to Zerodha")
+
+    return ExportZerodhaBasketResponse(
+        status="success",
+        basket_id=res["basket_id"],
+        basket_name=res["basket_name"],
+        item_count=res["item_count"],
+        kite_url=res["kite_url"],
+        message=f"Basket '{res['basket_name']}' successfully updated in Zerodha with {res['item_count']} items.",
     )

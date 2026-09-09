@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import type { AdvisoryResponse, AdvisoryAction, BasketItem } from '@/lib/types'
-import { useBasket } from '@/hooks/usePortfolio'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { useBasket, useZerodhaBaskets, useExportZerodhaBasket } from '@/hooks/usePortfolio'
+import { ChevronDown, ChevronUp, ExternalLink, CheckCircle2 } from 'lucide-react'
 
 interface Props { advisory: AdvisoryResponse }
 
@@ -184,15 +184,153 @@ export default function AdvisoryTab({ advisory }: Props) {
           )}
 
           {basket.isSuccess && basket.data.basket.length > 0 && (
-            <BasketTable
-              items={basket.data.basket}
-              totalBuy={basket.data.total_buy_value}
-              totalSell={basket.data.total_sell_value}
-              budgetPct={basket.data.budget_utilised_pct}
-            />
+            <>
+              <BasketTable
+                items={basket.data.basket}
+                totalBuy={basket.data.total_buy_value}
+                totalSell={basket.data.total_sell_value}
+                budgetPct={basket.data.budget_utilised_pct}
+              />
+              <ZerodhaExportSection items={basket.data.basket} />
+            </>
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+function ZerodhaExportSection({ items }: { items: BasketItem[] }) {
+  const defaultName = `Portfolio Rebalance ${new Date().toISOString().slice(0, 10)}`
+  const [mode, setMode] = useState<'new' | 'existing'>('new')
+  const [basketName, setBasketName] = useState(defaultName)
+  const [selectedBasketId, setSelectedBasketId] = useState('')
+
+  const { data: zerodhaData, isLoading: loadingBaskets } = useZerodhaBaskets()
+  const exportMutation = useExportZerodhaBasket()
+
+  const existingBaskets = zerodhaData?.baskets ?? []
+
+  const handleExport = () => {
+    const exportItems = items.map((i) => ({
+      symbol: i.symbol,
+      action: i.action,
+      quantity: i.quantity,
+    }))
+
+    const selectedBasket = existingBaskets.find((b) => b.id === selectedBasketId)
+    const nameToUse = mode === 'existing' && selectedBasket ? selectedBasket.name : basketName
+
+    exportMutation.mutate({
+      basket_name: nameToUse,
+      basket_id: mode === 'existing' ? selectedBasketId : undefined,
+      items: exportItems,
+    })
+  }
+
+  return (
+    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4 flex flex-col gap-4 mt-2">
+      <div className="flex items-center justify-between">
+        <div>
+          <h4 className="font-semibold text-sm">Export to Zerodha Baskets</h4>
+          <p className="text-xs text-[var(--muted)]">
+            Create or append to a Zerodha basket without executing orders. Trades can be manually executed on Zerodha Kite.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-3 text-sm">
+        <div className="flex gap-4 items-center">
+          <label className="flex items-center gap-2 cursor-pointer text-xs">
+            <input
+              type="radio"
+              name="basketMode"
+              checked={mode === 'new'}
+              onChange={() => setMode('new')}
+              className="accent-[var(--blue)]"
+            />
+            Create New Basket
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer text-xs">
+            <input
+              type="radio"
+              name="basketMode"
+              checked={mode === 'existing'}
+              onChange={() => setMode('existing')}
+              className="accent-[var(--blue)]"
+            />
+            Add to Existing Basket
+          </label>
+        </div>
+
+        {mode === 'new' ? (
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-[var(--muted)]">Basket Name</label>
+            <input
+              type="text"
+              value={basketName}
+              onChange={(e) => setBasketName(e.target.value)}
+              className="px-3 py-1.5 bg-[var(--bg)] border border-[var(--border)] rounded-md text-sm w-72 focus:outline-none focus:border-[var(--blue)]"
+              placeholder="e.g. Portfolio Rebalance"
+            />
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-[var(--muted)]">Select Zerodha Basket</label>
+            {loadingBaskets ? (
+              <p className="text-xs text-[var(--muted)]">Loading baskets…</p>
+            ) : existingBaskets.length === 0 ? (
+              <p className="text-xs text-[var(--muted)]">No existing baskets found. Please create a new basket.</p>
+            ) : (
+              <select
+                value={selectedBasketId}
+                onChange={(e) => setSelectedBasketId(e.target.value)}
+                className="px-3 py-1.5 bg-[var(--bg)] border border-[var(--border)] rounded-md text-sm w-72 focus:outline-none focus:border-[var(--blue)]"
+              >
+                <option value="">Select a basket…</option>
+                {existingBaskets.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name} {b.item_count !== undefined ? `(${b.item_count} items)` : ''}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        )}
+
+        <div className="flex items-center gap-3 mt-1">
+          <button
+            disabled={exportMutation.isPending || (mode === 'new' && !basketName.trim()) || (mode === 'existing' && !selectedBasketId)}
+            onClick={handleExport}
+            className="px-4 py-2 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            {exportMutation.isPending ? 'Pushing to Zerodha…' : 'Push to Zerodha Basket'}
+          </button>
+        </div>
+
+        {exportMutation.isError && (
+          <p className="text-xs text-[var(--red)]">
+            {(exportMutation.error as Error)?.message || 'Failed to export basket to Zerodha. Check your Zerodha connection.'}
+          </p>
+        )}
+
+        {exportMutation.isSuccess && (
+          <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-3 flex flex-col gap-2 text-xs text-emerald-400">
+            <div className="flex items-center gap-2 font-medium">
+              <CheckCircle2 size={16} />
+              <span>{exportMutation.data.message}</span>
+            </div>
+            <a
+              href={exportMutation.data.kite_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 font-semibold underline hover:text-emerald-300 w-fit"
+            >
+              Open Zerodha Kite Baskets <ExternalLink size={14} />
+            </a>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

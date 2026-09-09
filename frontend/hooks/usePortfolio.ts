@@ -7,8 +7,10 @@ import {
   fetchMargins,
   fetchAdvisory,
   createBasket,
+  fetchZerodhaBaskets,
+  exportZerodhaBasket,
 } from '@/lib/api'
-import type { Recommendation } from '@/lib/types'
+import type { Recommendation, ExportZerodhaBasketPayload } from '@/lib/types'
 
 const STALE = 5 * 60 * 1000
 
@@ -47,4 +49,16 @@ export const useBasket = () =>
   useMutation({
     mutationFn: ({ recommendations, budget }: { recommendations: Recommendation[]; budget: number }) =>
       createBasket(recommendations, budget),
+  })
+
+export const useZerodhaBaskets = () =>
+  useQuery({
+    queryKey: ['zerodha_baskets'],
+    queryFn: fetchZerodhaBaskets,
+    staleTime: 60 * 1000,
+  })
+
+export const useExportZerodhaBasket = () =>
+  useMutation({
+    mutationFn: (payload: ExportZerodhaBasketPayload) => exportZerodhaBasket(payload),
   })

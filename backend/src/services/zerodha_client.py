@@ -207,26 +207,43 @@ class ZerodhaService:
             return data
         raise RuntimeError("KiteConnect client not initialized properly.")
 
-    def _make_enctoken_request(self, path: str) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
-        """Makes HTTP request with enctoken trying both api.kite.trade and kite.zerodha.com/oms endpoints."""
+    def _make_enctoken_request(
+        self,
+        path: str,
+        method: str = "GET",
+        payload: Optional[Any] = None,
+        is_json: bool = True,
+    ) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+        """Makes HTTP request with enctoken trying both kite.zerodha.com/oms and api.kite.trade endpoints."""
         if not self.enctoken:
             return None, "No enctoken set"
 
         endpoints = [
-            f"https://api.kite.trade{path}",
-            f"https://kite.zerodha.com/oms{path}"
+            f"https://kite.zerodha.com/oms{path}",
+            f"https://api.kite.trade{path}"
         ]
 
         last_error = None
         for url in endpoints:
             def _do_request(url=url):
-                req = urllib.request.Request(url)
-                req.add_header("Authorization", f"enctoken {self.enctoken}")
-                req.add_header("Cookie", f"enctoken={self.enctoken}")
-                req.add_header("X-Kite-Version", "3")
-                req.add_header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                headers = {
+                    "Authorization": f"enctoken {self.enctoken}",
+                    "Cookie": f"enctoken={self.enctoken}",
+                    "X-Kite-Version": "3",
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                }
+                data_bytes = None
+                if payload is not None:
+                    if is_json:
+                        data_bytes = json.dumps(payload).encode("utf-8")
+                        headers["Content-Type"] = "application/json"
+                    else:
+                        data_bytes = urllib.parse.urlencode(payload).encode("utf-8")
+                        headers["Content-Type"] = "application/x-www-form-urlencoded"
+
+                req = urllib.request.Request(url, data=data_bytes, headers=headers, method=method)
                 with urllib.request.urlopen(req, timeout=10) as response:
-                    if response.status == 200:
+                    if response.status in (200, 201):
                         return json.loads(response.read().decode("utf-8"))
                 raise RuntimeError(f"Unexpected status from {url}")
 
@@ -342,6 +359,83 @@ class ZerodhaService:
             except Exception as e:
                 logger.error(f"Margins fetch failed: {e}")
         return DEMO_MARGINS
+
+    def get_baskets(self) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+        """Fetches list of existing baskets from Zerodha."""
+        if self.enctoken:
+            json_data, err = self._make_enctoken_request("/orders/baskets")
+            if json_data and json_data.get("status") == "success":
+                return json_data.get("data", []), None
+            return [], err or "Failed to fetch Zerodha baskets"
+
+        # Fallback/Demo mode
+        return [
+            {"id": "demo_b1", "name": "Core Long Term Equity", "item_count": 4},
+            {"id": "demo_b2", "name": "Tactical Rebalance", "item_count": 2}
+        ], None
+
+    def export_to_zerodha_basket(
+        self,
+        basket_name: str,
+        items: List[Dict[str, Any]],
+        basket_id: Optional[str] = None
+    ) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+        """
+        Creates or updates a basket in Zerodha without executing orders.
+        items expected format: [{ "symbol": "RELIANCE", "action": "BUY", "quantity": 10, ... }]
+        """
+        formatted_orders = []
+        for item in items:
+            action = item.get("action", "BUY").upper()
+            tx_type = "BUY" if action == "BUY" else "SELL"
+            formatted_orders.append({
+                "exchange": "NSE",
+                "tradingsymbol": item.get("symbol"),
+                "transaction_type": tx_type,
+                "order_type": "MARKET",
+                "product": "CNC",
+                "quantity": int(item.get("quantity", 1)),
+                "price": 0,
+            })
+
+        if self.enctoken:
+            if basket_id:
+                path = f"/orders/baskets/{basket_id}/items"
+                json_data, err = self._make_enctoken_request(path, method="POST", payload={"orders": formatted_orders})
+                if json_data and json_data.get("status") == "success":
+                    return {
+                        "basket_id": basket_id,
+                        "basket_name": basket_name,
+                        "item_count": len(formatted_orders),
+                        "kite_url": "https://kite.zerodha.com/orders/baskets"
+                    }, None
+                return None, err or f"Failed to add items to basket {basket_id}"
+            else:
+                path = "/orders/baskets"
+                payload = {
+                    "name": basket_name,
+                    "orders": formatted_orders
+                }
+                json_data, err = self._make_enctoken_request(path, method="POST", payload=payload)
+                if json_data and json_data.get("status") == "success":
+                    new_id = json_data.get("data", {}).get("id", "new_basket")
+                    return {
+                        "basket_id": new_id,
+                        "basket_name": basket_name,
+                        "item_count": len(formatted_orders),
+                        "kite_url": "https://kite.zerodha.com/orders/baskets"
+                    }, None
+                return None, err or "Failed to create basket in Zerodha"
+
+        # Demo mode response
+        demo_id = basket_id or f"demo_basket_{abs(hash(basket_name)) % 10000}"
+        logger.info("Demo Mode: Simulated creation of Zerodha basket '%s' with %d orders", basket_name, len(formatted_orders))
+        return {
+            "basket_id": demo_id,
+            "basket_name": basket_name,
+            "item_count": len(formatted_orders),
+            "kite_url": "https://kite.zerodha.com/orders/baskets"
+        }, None
 
     def _infer_sector(self, symbol: str) -> str:
         sector_map = {

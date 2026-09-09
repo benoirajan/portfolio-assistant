@@ -137,6 +137,27 @@ export interface BasketResponse {
   budget_utilised_pct: number
 }
 
+export interface ZerodhaBasket {
+  id: string
+  name: string
+  item_count?: number
+}
+
+export interface ExportZerodhaBasketPayload {
+  basket_name: string
+  basket_id?: string
+  items: { symbol: string; action: string; quantity: number }[]
+}
+
+export interface ExportZerodhaBasketResponse {
+  status: string
+  basket_id: string
+  basket_name: string
+  item_count: number
+  kite_url: string
+  message: string
+}
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 export interface LoginUrlResponse {

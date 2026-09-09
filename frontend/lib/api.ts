@@ -8,6 +8,9 @@ import type {
   LoginUrlResponse,
   Recommendation,
   BasketResponse,
+  ZerodhaBasket,
+  ExportZerodhaBasketPayload,
+  ExportZerodhaBasketResponse,
 } from './types'
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000'
@@ -63,3 +66,11 @@ export const createBasket = (
   apiClient
     .post('/api/v1/advisory/basket', { recommendations, max_budget })
     .then((r) => r.data)
+
+export const fetchZerodhaBaskets = (): Promise<{ status: string; baskets: ZerodhaBasket[]; error?: string }> =>
+  apiClient.get('/api/v1/advisory/zerodha-baskets').then((r) => r.data)
+
+export const exportZerodhaBasket = (
+  payload: ExportZerodhaBasketPayload
+): Promise<ExportZerodhaBasketResponse> =>
+  apiClient.post('/api/v1/advisory/export-zerodha-basket', payload).then((r) => r.data)
