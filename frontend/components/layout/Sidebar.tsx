@@ -18,6 +18,37 @@ interface Props {
   onMaxStockCapChange: (v: number) => void
 }
 
+function SliderWithInput({
+  min, max, value, onChange,
+}: { min: number; max: number; value: number; onChange: (v: number) => void }) {
+  const [draft, setDraft] = useState(String(value))
+
+  useEffect(() => { setDraft(String(value)) }, [value])
+
+  const commit = (raw: string) => {
+    const v = Math.min(max, Math.max(min, Number(raw)))
+    if (!isNaN(v) && raw !== '') onChange(v)
+    else setDraft(String(value))
+  }
+
+  return (
+    <div className="flex items-center gap-2 mt-1">
+      <input
+        type="range" min={min} max={max} value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="flex-1 accent-[var(--blue)]"
+      />
+      <input
+        type="number" min={min} max={max} value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={(e) => commit(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && commit(draft)}
+        className="w-14 bg-[var(--surface)] border border-[var(--border)] rounded px-1.5 py-0.5 text-xs text-center outline-none focus:border-[var(--blue)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+      />
+    </div>
+  )
+}
+
 const MODES: { id: ConnectionMode; label: string; icon: React.ReactNode }[] = [
   { id: 'demo', label: 'Demo', icon: <FlaskConical size={14} /> },
   { id: 'enctoken', label: 'Enctoken', icon: <Key size={14} /> },
@@ -117,14 +148,8 @@ export default function Sidebar({
           {['NIFTY 50', 'NIFTY 500', 'SENSEX'].map((b) => <option key={b}>{b}</option>)}
         </select>
 
-        <label className="text-xs text-[var(--muted)] mt-3 block">
-          Max sector cap: <span className="text-[var(--text)]">{maxSectorCap}%</span>
-        </label>
-        <input
-          type="range" min={10} max={40} value={maxSectorCap}
-          onChange={(e) => onMaxSectorCapChange(Number(e.target.value))}
-          className="w-full mt-1 accent-[var(--blue)]"
-        />
+        <label className="text-xs text-[var(--muted)] mt-3 block">Max sector cap (%)</label>
+        <SliderWithInput min={10} max={60} value={maxSectorCap} onChange={onMaxSectorCapChange} />
       </div>
 
       <div>
@@ -138,14 +163,8 @@ export default function Sidebar({
           {GOALS.map((g) => <option key={g}>{g}</option>)}
         </select>
 
-        <label className="text-xs text-[var(--muted)] mt-3 block">
-          Max single stock: <span className="text-[var(--text)]">{maxStockCap}%</span>
-        </label>
-        <input
-          type="range" min={5} max={40} value={maxStockCap}
-          onChange={(e) => onMaxStockCapChange(Number(e.target.value))}
-          className="w-full mt-1 accent-[var(--blue)]"
-        />
+        <label className="text-xs text-[var(--muted)] mt-3 block">Max single stock (%)</label>
+        <SliderWithInput min={5} max={50} value={maxStockCap} onChange={onMaxStockCapChange} />
       </div>
     </aside>
   )
