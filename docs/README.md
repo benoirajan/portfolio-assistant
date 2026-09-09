@@ -26,6 +26,8 @@ docs/
 │   ├── phase_3_ai_advisory_engine.md
 │   └── phase_4_order_staging_and_alerts.md
 ├── guides/
+│   ├── USER_GUIDE.md                  ← How to use the dashboard (end-user guide)
+│   ├── TUTORIAL.md                    ← Developer setup tutorial (install → run)
 │   └── zerodha_api_setup_guide.md     ← Free vs paid Zerodha API, enctoken setup
 └── api-references/
     └── Gemini_api_doc.md              ← Google Gemini SDK integration reference
@@ -45,6 +47,8 @@ docs/
 | Read Phase 3 implementation details | [lld/03_phase3_ai_advisory.md](./lld/03_phase3_ai_advisory.md) |
 | Understand logging setup and log lines | [lld/04_logging.md](./lld/04_logging.md) |
 | Understand retry policies | [lld/05_retry_and_fallback.md](./lld/05_retry_and_fallback.md) |
+| Use the dashboard as a user | [guides/USER_GUIDE.md](./guides/USER_GUIDE.md) |
+| Get started end-to-end (developer) | [guides/TUTORIAL.md](./guides/TUTORIAL.md) |
 | Set up Zerodha API access | [guides/zerodha_api_setup_guide.md](./guides/zerodha_api_setup_guide.md) |
 | Reference the Gemini SDK | [api-references/Gemini_api_doc.md](./api-references/Gemini_api_doc.md) |
 | See what's planned for Phase 4 | [plans/phase_4_order_staging_and_alerts.md](./plans/phase_4_order_staging_and_alerts.md) |

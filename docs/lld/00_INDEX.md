@@ -10,7 +10,7 @@
 |---|---|---|---|
 | 1 | [01_phase1_auth_and_holdings.md](./01_phase1_auth_and_holdings.md) | Phase 1 | Config, Zerodha client wrapper, auth & holdings REST endpoints, FastAPI entrypoint |
 | 2 | [02_phase2_analytics_engine.md](./02_phase2_analytics_engine.md) | Phase 2 | Market data service (4-tier fallback), quantitative analytics, tax harvesting, analytics REST endpoints |
-| 3 | [03_phase3_ai_advisory.md](./03_phase3_ai_advisory.md) | Phase 3 | Rule engine, LLM advisor (Gemini/Ollama), Pydantic guardrails, advisory REST endpoint, UI tab, Gemini bug fixes |
+| 3 | [03_phase3_ai_advisory.md](./03_phase3_ai_advisory.md) | Phase 3 | Rule engine, LLM advisor (Gemini/Ollama), Pydantic guardrails, advisory REST endpoint, trade basket endpoint, UI tab, Gemini bug fixes |
 | 4 | [04_logging.md](./04_logging.md) | Cross-cutting | Central logging setup, request tracing middleware, per-router log lines, logger hierarchy |
 | 5 | [05_retry_and_fallback.md](./05_retry_and_fallback.md) | Cross-cutting | Shared retry utility, per-service retry policies, fail-fast rules, jitter rationale |
 | 6 | [06_file_change_summary.md](./06_file_change_summary.md) | Session log | All files added/modified in the Phase 3 session with links to relevant LLD sections |
@@ -36,9 +36,9 @@
 | `src/api/auth.py` | [LLD 01 §3](./01_phase1_auth_and_holdings.md#3-srcapiauthpy--authentication-router), [LLD 04 §3](./04_logging.md#authpy) |
 | `src/api/holdings.py` | [LLD 01 §4](./01_phase1_auth_and_holdings.md#4-srcapiholdingspy--holdings--portfolio-router), [LLD 04 §3](./04_logging.md#holdingspy) |
 | `src/api/analytics.py` | [LLD 02 §4](./02_phase2_analytics_engine.md#4-srcapianalyticspy--analytics-router), [LLD 04 §3](./04_logging.md#analyticspy) |
-| `src/api/advisory.py` | [LLD 03 §4](./03_phase3_ai_advisory.md#4-srcapiadvisorypy--advisory-rest-endpoint), [LLD 04 §3](./04_logging.md#advisorypy) |
-| `frontend/lib/types.ts` | [LLD 07 §1](./07_phase5_react_frontend.md#1-frontendlibtypests--typescript-type-definitions) |
-| `frontend/lib/api.ts` | [LLD 07 §2](./07_phase5_react_frontend.md#2-frontendlibapits--axios-client--api-functions) |
+| `src/api/advisory.py` | [LLD 03 §4](./03_phase3_ai_advisory.md#4-srcapiadvisorypy--advisory-rest-endpoint), [LLD 03 §9](./03_phase3_ai_advisory.md#9-trade-basket-feature), [LLD 04 §3](./04_logging.md#advisorypy) |
+| `frontend/lib/types.ts` | [LLD 07 §1](./07_phase5_react_frontend.md#1-frontendlibtypests--typescript-type-definitions) — adds `BasketItem`, `BasketResponse` |
+| `frontend/lib/api.ts` | [LLD 07 §2](./07_phase5_react_frontend.md#2-frontendlibapits--axios-client--api-functions) — adds `createBasket(recommendations, budget)` |
 | `frontend/hooks/usePortfolio.ts` | [LLD 07 §3](./07_phase5_react_frontend.md#3-frontendhooksuseportfoliots--react-query-hooks) |
 | `frontend/app/layout.tsx` | [LLD 07 §4](./07_phase5_react_frontend.md#4-frontendapplayouttsx--root-layout) |
 | `frontend/components/layout/Header.tsx` | [LLD 07 §5](./07_phase5_react_frontend.md#5-frontendcomponentslayoutheadertsx) |
@@ -48,7 +48,7 @@
 | `frontend/components/tabs/SectorTab.tsx` | [LLD 07 §9](./07_phase5_react_frontend.md#9-frontendcomponentstabssectortabtsx) |
 | `frontend/components/tabs/PerformanceTab.tsx` | [LLD 07 §10](./07_phase5_react_frontend.md#10-frontendcomponentstabsperformancetabtsx) |
 | `frontend/components/tabs/TaxTab.tsx` | [LLD 07 §11](./07_phase5_react_frontend.md#11-frontendcomponentstabstaxtabtsx) |
-| `frontend/components/tabs/AdvisoryTab.tsx` | [LLD 07 §12](./07_phase5_react_frontend.md#12-frontendcomponentstabsadvisorytabtsx) |
+| `frontend/components/tabs/AdvisoryTab.tsx` | [LLD 07 §12](./07_phase5_react_frontend.md#12-frontendcomponentstabsadvisorytabtsx) — adds basket budget input + basket table |
 | `frontend/app/dashboard/page.tsx` | [LLD 07 §13](./07_phase5_react_frontend.md#13-frontendappdashboardpagetsx--dashboard-page) |
 
 ---

@@ -121,6 +121,22 @@ export interface AdvisoryResponse {
   recommendations: Recommendation[]
 }
 
+export interface BasketItem {
+  symbol: string
+  action: 'BUY' | 'SELL' | 'TRIM'
+  quantity: number
+  estimated_value: number
+  reason: string
+}
+
+export interface BasketResponse {
+  status: string
+  basket: BasketItem[]
+  total_buy_value: number
+  total_sell_value: number
+  budget_utilised_pct: number
+}
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 export interface LoginUrlResponse {

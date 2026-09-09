@@ -6,6 +6,8 @@ import type {
   MarginsResponse,
   AdvisoryResponse,
   LoginUrlResponse,
+  Recommendation,
+  BasketResponse,
 } from './types'
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000'
@@ -53,3 +55,11 @@ export const checkHealth = (): Promise<boolean> =>
     .get('/health')
     .then(() => true)
     .catch(() => false)
+
+export const createBasket = (
+  recommendations: Recommendation[],
+  max_budget: number
+): Promise<BasketResponse> =>
+  apiClient
+    .post('/api/v1/advisory/basket', { recommendations, max_budget })
+    .then((r) => r.data)

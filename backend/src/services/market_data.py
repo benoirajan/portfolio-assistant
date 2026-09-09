@@ -1,6 +1,5 @@
 import logging
 import time
-import requests
 from typing import Dict, List, Any, Optional
 from src.core.config import settings
 from src.core.retry import retry
@@ -41,7 +40,6 @@ SECTOR_MAP = {
 class MarketDataService:
     def __init__(self):
         self._yf = None
-        self._nse = None
 
     def _get_yfinance(self):
         if self._yf is None:
@@ -52,67 +50,28 @@ class MarketDataService:
                 logger.warning("yfinance not installed.")
         return self._yf
 
-    def _get_nsepython(self):
-        if self._nse is None:
-            try:
-                import nsepython as nse
-                self._nse = nse
-            except ImportError:
-                logger.warning("nsepython not installed.")
-        return self._nse
-
     # ------------------------------------------------------------------
-    # Primary provider: nsepython (NSE-native, no API key required)
-    # ------------------------------------------------------------------
-    def _fetch_nsepython(self, symbol: str) -> Optional[Dict[str, Any]]:
-        nse = self._get_nsepython()
-        if not nse:
-            return None
-        try:
-            @retry(max_attempts=3, base_delay=1.0, multiplier=2.0,
-                   retryable_on=(Exception,))
-            def _fetch():
-                return nse.nse_eq(symbol)
-            quote = _fetch()
-            info  = quote.get("priceInfo", {})
-            meta  = quote.get("metadata", {})
-            ind   = quote.get("industryInfo", {})
-            market_cap = float(meta.get("pdSectorPe", 0) or 0)  # used for cap inference via sector PE
-
-            pe  = float(info.get("pdSymbolPe", 0) or 0)
-            sma = float(info.get("priceBand", {}).get("lowerPrice", 0) or 0)  # best available proxy
-            sector = ind.get("sector", "") or self._infer_sector(symbol)
-
-            if pe == 0:
-                return None  # incomplete data — fall through to next provider
-
-            return {
-                "symbol":       symbol,
-                "sector":       sector,
-                "cap_category": self._sebi_cap_category(meta.get("pdSectorInd", "")),
-                "pe_ratio":     round(pe, 2),
-                "pb_ratio":     0.0,   # not available in basic NSE quote
-                "roe":          0.0,   # not available in basic NSE quote
-                "div_yield":    0.0,
-                "sma_200":      sma,
-            }
-        except Exception as e:
-            logger.warning("nsepython fetch failed for %s after retries: %s", symbol, e)
-            return None
-
-    # ------------------------------------------------------------------
-    # Secondary provider: yfinance with .NS suffix
+    # Primary provider: yfinance with .NS suffix
     # ------------------------------------------------------------------
     def _fetch_yfinance(self, symbol: str) -> Optional[Dict[str, Any]]:
         yf = self._get_yfinance()
         if not yf:
             return None
+
+        class _SSLError(Exception):
+            pass
+
         try:
             @retry(max_attempts=3, base_delay=2.0, multiplier=2.0,
-                   retryable_on=(Exception,))
+                   retryable_on=(Exception,), exclude_on=(_SSLError,))
             def _fetch():
-                t = yf.Ticker(f"{symbol}.NS")
-                return t.info
+                try:
+                    return yf.Ticker(f"{symbol}.NS").info
+                except Exception as exc:
+                    msg = str(exc)
+                    if "curl: (60)" in msg or "SSL certificate" in msg or "CertificateVerify" in msg:
+                        raise _SSLError(msg) from exc
+                    raise
             info = _fetch()
             if not info or "trailingPE" not in info:
                 return None
@@ -127,12 +86,34 @@ class MarketDataService:
                 "sma_200":      round(float(info.get("twoHundredDayAverage", 0) or 0), 2),
             }
         except Exception as e:
-            logger.warning("yfinance fallback failed for %s after retries: %s", symbol, e)
+            logger.warning("yfinance fetch failed for %s after retries: %s", symbol, e)
             return None
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+    def get_live_quote(self, symbol: str) -> Optional[Dict[str, float]]:
+        """Fetches live LTP, day_change, day_change_percentage via yfinance. Returns None on failure."""
+        yf = self._get_yfinance()
+        if not yf:
+            return None
+        try:
+            @retry(max_attempts=2, base_delay=1.0, multiplier=2.0, retryable_on=(Exception,))
+            def _fetch():
+                info = yf.Ticker(f"{symbol}.NS").fast_info
+                ltp = float(info.last_price or 0)
+                prev_close = float(info.previous_close or 0)
+                if ltp <= 0:
+                    return None
+                change = round(ltp - prev_close, 2)
+                change_pct = round((change / prev_close * 100) if prev_close > 0 else 0.0, 2)
+                return {"last_price": round(ltp, 2), "close_price": round(prev_close, 2),
+                        "day_change": change, "day_change_percentage": change_pct}
+            return _fetch()
+        except Exception as e:
+            logger.warning("Live quote fetch failed for %s: %s", symbol, e)
+            return None
+
     def get_stock_fundamental_data(self, symbol: str) -> Dict[str, Any]:
         clean = symbol.upper().replace(".NS", "").replace(".BO", "")
 
@@ -141,16 +122,16 @@ class MarketDataService:
         if cached and time.time() < cached[1]:
             return cached[0]
 
-        # 2. Primary: nsepython (NSE-native)
-        data = self._fetch_nsepython(clean)
-
-        # 3. Secondary: yfinance with .NS suffix
-        if not data:
+        # 2. In demo mode, use static DB directly for known symbols
+        if settings.DEMO_MODE and clean in STOCK_METADATA_DB:
+            data = {**STOCK_METADATA_DB[clean], "symbol": clean}
+        else:
+            # 3. Primary: yfinance
             data = self._fetch_yfinance(clean)
 
-        # 4. Static metadata DB
-        if not data and clean in STOCK_METADATA_DB:
-            data = {**STOCK_METADATA_DB[clean], "symbol": clean}
+            # 4. Static metadata DB fallback
+            if not data and clean in STOCK_METADATA_DB:
+                data = {**STOCK_METADATA_DB[clean], "symbol": clean}
 
         # 5. Generic defaults
         if not data:
@@ -183,22 +164,10 @@ class MarketDataService:
     def _infer_sector(self, symbol: str) -> str:
         return SECTOR_MAP.get(symbol.upper(), "Diversified / Others")
 
-    def _sebi_cap_category(self, sector_ind: str) -> str:
-        """Maps NSE sector index name to SEBI-defined cap category."""
-        s = sector_ind.upper()
-        if any(x in s for x in ["NIFTY 50", "NIFTY100", "LARGE"]):
-            return "Large Cap"
-        if any(x in s for x in ["MIDCAP", "NIFTY 150", "MID"]):
-            return "Mid Cap"
-        if any(x in s for x in ["SMALLCAP", "SMALL"]):
-            return "Small Cap"
-        return "Large Cap"  # default for unclassified NSE stocks
-
     def _infer_cap_category(self, market_cap: float) -> str:
-        """Fallback cap classification by market cap value (INR)."""
-        if market_cap >= 200_000_000_000:   # ₹20,000 Cr+
+        if market_cap >= 200_000_000_000:
             return "Large Cap"
-        elif market_cap >= 50_000_000_000:  # ₹5,000 Cr - ₹20,000 Cr
+        elif market_cap >= 50_000_000_000:
             return "Mid Cap"
         return "Small Cap"
 

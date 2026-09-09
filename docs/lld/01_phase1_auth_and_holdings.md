@@ -148,9 +148,11 @@ Main holdings fetch with three-tier fallback. Returns `(holdings, is_live, error
 |---|---|---|
 | 1 | `self.enctoken` set | Calls `_make_enctoken_request("/portfolio/holdings")`. Infers missing `sector` and `cap_category` fields. |
 | 2 | `self.access_token` + `kite_client` | Calls `kite_client.holdings()`. Infers missing fields. |
-| 3 | Fallback | Returns `DEMO_HOLDINGS`, `is_live=False`, `error_message=None` |
+| 3 | Fallback | Returns `DEMO_HOLDINGS` enriched with live LTP via `market_data_service.get_live_quote()`, `is_live=False`, `error_message=None` |
 
-On enctoken failure: returns `DEMO_HOLDINGS`, `is_live=False`, and a formatted error message instructing the user to re-copy their enctoken.
+On enctoken failure: returns demo holdings (with live LTP if available), `is_live=False`, and a formatted error message instructing the user to re-copy their enctoken.
+
+**Demo mode live quote enrichment:** Even in demo mode, `last_price`, `close_price`, `day_change`, and `day_change_percentage` are refreshed from yfinance (`.NS`) for each symbol. `pnl` is recomputed from the live `last_price`. Falls back to hardcoded values silently if yfinance is unavailable.
 
 ---
 

@@ -162,6 +162,30 @@ Action badge colours:
 | TRIM | Yellow |
 | SELL | Red |
 
+### Basket sub-section (added)
+
+Rendered below the recommendations list, only when `advisory.source` is present (i.e. recommendations loaded).
+
+**Budget input:**
+- Number input: "Max budget for buying (₹)" — local state, not sent to any hook until user clicks "Generate Basket"
+- "Generate Basket" button triggers `useMutation` → `POST /api/v1/advisory/basket`
+- Button is disabled when `recommendations` list is empty or budget ≤ 0
+
+**Basket table** (shown after mutation succeeds):
+
+| Column | Source |
+|---|---|
+| Action badge | `item.action` — same colour scheme as recommendation cards |
+| Symbol | `item.symbol` |
+| Quantity | `item.quantity` |
+| Est. Value | `item.estimated_value` formatted as ₹ |
+| Reason | `item.reason` (truncated, full text on hover via `title` attr) |
+
+**Summary row** below table:
+- Total buy: `total_buy_value`
+- Total sell/trim proceeds: `total_sell_value`
+- Budget used: `budget_utilised_pct`%
+
 ---
 
 ## 13. `frontend/app/dashboard/page.tsx` — Dashboard Page

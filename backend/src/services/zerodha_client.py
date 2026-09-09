@@ -1,3 +1,4 @@
+import copy
 import logging
 import urllib.parse
 import urllib.request
@@ -284,8 +285,15 @@ class ZerodhaService:
                 logger.error(err_msg)
                 return DEMO_HOLDINGS, False, err_msg
 
-        # 3. Fallback Demo
-        return DEMO_HOLDINGS, False, None
+        # 3. Fallback Demo — enrich with live LTP from yfinance
+        from src.services.market_data import market_data_service
+        holdings = copy.deepcopy(DEMO_HOLDINGS)
+        for h in holdings:
+            quote = market_data_service.get_live_quote(h["tradingsymbol"])
+            if quote:
+                h.update(quote)
+                h["pnl"] = round((h["last_price"] - h["average_price"]) * h["quantity"], 2)
+        return holdings, False, None
 
     def get_holdings(self) -> List[Dict[str, Any]]:
         holdings, _, _ = self.get_holdings_with_status()
