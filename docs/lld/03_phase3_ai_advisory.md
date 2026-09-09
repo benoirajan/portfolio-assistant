@@ -241,7 +241,122 @@ OLLAMA_MODEL=mistral
 
 ---
 
-## 9. Gemini API Bug Fixes
+## 9. Trade Basket Feature
+
+**New capability added to Phase 3.** After receiving LLM recommendations, the user can enter a max budget and generate a deterministic trade basket — no second LLM call.
+
+### 9.1 Design Principles
+
+- Absolute ₹ values never leave the backend — the LLM only ever sees `weight_pct`
+- Basket math is pure arithmetic on the backend using real holdings data
+- User's `max_budget` caps total BUY spend; SELL/TRIM quantities are computed from the delta between current and target allocation independently
+- All four actions are supported: `BUY`, `SELL`, `TRIM`, `HOLD` (HOLD items are excluded from the basket)
+
+### 9.2 `POST /api/v1/advisory/basket`
+
+**New endpoint in `src/api/advisory.py`.**
+
+**Request body:**
+
+```json
+{
+  "recommendations": [
+    {
+      "symbol": "INFY",
+      "action": "BUY",
+      "target_allocation_pct": 12.0,
+      "confidence_score": 0.7,
+      "rationale": "High ROE..."
+    }
+  ],
+  "max_budget": 50000.0
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `recommendations` | `List[Recommendation]` | Full recommendations list from `/recommendations` response |
+| `max_budget` | `float` | Max ₹ the user is willing to spend on BUY orders. Does not cap SELL/TRIM |
+
+**Response shape:**
+
+```json
+{
+  "status": "success",
+  "basket": [
+    {
+      "symbol": "INFY",
+      "action": "BUY",
+      "quantity": 4,
+      "estimated_value": 14200.0,
+      "reason": "High ROE..."
+    }
+  ],
+  "total_buy_value": 14200.0,
+  "total_sell_value": 5600.0,
+  "budget_utilised_pct": 28.4
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `basket` | `List[BasketItem]` | One item per non-HOLD recommendation with quantity > 0 |
+| `total_buy_value` | `float` | Sum of `estimated_value` for all BUY items |
+| `total_sell_value` | `float` | Sum of `estimated_value` for all SELL/TRIM items |
+| `budget_utilised_pct` | `float` | `total_buy_value / max_budget * 100` |
+
+### 9.3 Basket Calculation Logic
+
+All math runs in `src/api/advisory.py` using live holdings fetched inside the endpoint.
+
+**Step 1 — Compute total portfolio value:**
+```
+total_value = sum(quantity × last_price for each holding)
+```
+
+**Step 2 — Per recommendation:**
+
+| Action | Formula |
+|---|---|
+| `BUY` | `target_₹ = total_value × target_pct / 100`<br>`current_₹ = quantity × last_price`<br>`delta_₹ = target_₹ − current_₹`<br>`shares = floor(delta_₹ / last_price)` |
+| `SELL` | `target_₹ = total_value × target_pct / 100`<br>`delta_₹ = current_₹ − target_₹`<br>`shares = floor(delta_₹ / last_price)` |
+| `TRIM` | Same formula as SELL |
+| `HOLD` | Excluded from basket |
+
+**Step 3 — Apply budget cap to BUY items:**
+- Sort BUY items by `confidence_score` descending
+- Accumulate spend; once `running_total + estimated_value > max_budget`, recalculate `quantity = floor(remaining_budget / last_price)`
+- Items that result in `quantity = 0` are excluded from the basket
+
+**Step 4 — Exclude zero-quantity items** (e.g. already at target, or price > remaining budget).
+
+### 9.4 Pydantic Request/Response Models
+
+Added to `src/api/advisory.py`:
+
+```python
+class BasketRequest(BaseModel):
+    recommendations: List[Recommendation]   # reuses existing Pydantic model
+    max_budget: float = Field(gt=0)
+
+class BasketItem(BaseModel):
+    symbol: str
+    action: Literal["BUY", "SELL", "TRIM"]
+    quantity: int
+    estimated_value: float
+    reason: str
+
+class BasketResponse(BaseModel):
+    status: str
+    basket: List[BasketItem]
+    total_buy_value: float
+    total_sell_value: float
+    budget_utilised_pct: float
+```
+
+---
+
+## 10. Gemini API Bug Fixes
 
 Three bugs found by comparing the implementation against [api-references/Gemini_api_doc.md](../api-references/Gemini_api_doc.md):
 
