@@ -107,12 +107,21 @@ class MarketDataService:
         yf = self._get_yfinance()
         if not yf:
             return None
+
+        class _SSLError(Exception):
+            pass
+
         try:
             @retry(max_attempts=3, base_delay=2.0, multiplier=2.0,
-                   retryable_on=(Exception,))
+                   retryable_on=(Exception,), exclude_on=(_SSLError,))
             def _fetch():
-                t = yf.Ticker(f"{symbol}.NS")
-                return t.info
+                try:
+                    return yf.Ticker(f"{symbol}.NS").info
+                except Exception as exc:
+                    msg = str(exc)
+                    if "curl: (60)" in msg or "SSL certificate" in msg or "CertificateVerify" in msg:
+                        raise _SSLError(msg) from exc
+                    raise
             info = _fetch()
             if not info or "trailingPE" not in info:
                 return None
