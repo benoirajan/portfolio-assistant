@@ -39,8 +39,8 @@ Start the Redis caching container before running the backend:
 
 **Option A: Using Docker Compose (Recommended)**
 ```bash
-# Start Redis in background
-docker compose up -d redis
+# Start Redis from the backend directory
+cd backend && docker compose up -d redis
 ```
 
 **Option B: Using Docker CLI**
