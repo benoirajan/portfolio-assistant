@@ -25,6 +25,7 @@ portfolio-assistant/
 ├── backend/          # FastAPI backend — Python 3.10+
 ├── frontend/         # React frontend — Next.js + Tailwind + Recharts
 ├── docs/             # Project-wide documentation
+├── docker-compose.yml# Docker services (Redis cache)
 └── README.md         # This file
 ```
 
@@ -32,17 +33,57 @@ portfolio-assistant/
 
 ## 🚀 Running the Application
 
-### Backend
+### 1. Redis Cache (Docker)
+
+Start the Redis caching container before running the backend:
+
+**Option A: Using Docker Compose (Recommended)**
+```bash
+# Start Redis in background
+docker compose up -d redis
+```
+
+**Option B: Using Docker CLI**
+```bash
+# Run Redis container on port 6379 with persistent volume
+docker run -d --name portfolio_redis -p 6379:6379 -v redis_data:/data redis:7-alpine
+```
+
+**Redis Management Commands:**
+```bash
+# Check running containers
+docker ps
+
+# View Redis logs
+docker compose logs -f redis        # Docker Compose
+docker logs portfolio_redis        # Docker CLI
+
+# Verify Redis ping/pong connection
+docker exec -it portfolio_redis redis-cli ping
+
+# Stop / Start Redis container
+docker compose stop redis           # Docker Compose
+docker stop portfolio_redis        # Docker CLI
+docker compose start redis          # Docker Compose
+docker start portfolio_redis       # Docker CLI
+
+# Stop & Remove container + persistence volume
+docker compose down -v              # Docker Compose
+docker rm -f portfolio_redis && docker volume rm redis_data  # Docker CLI
+```
+
+### 2. Backend
 See [backend/README.md](./backend/README.md) for full setup instructions.
 
 ```bash
 cd backend
-python -m venv .venv && .venv\Scripts\activate   # Windows
+python -m venv .venv && source .venv/bin/activate   # Linux/macOS
+# or: .venv\Scripts\activate                         # Windows
 pip install -r requirements.txt
 python -m uvicorn src.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-### Frontend
+### 3. Frontend
 See [frontend/README.md](./frontend/README.md) for full setup instructions.
 
 ```bash
@@ -53,6 +94,8 @@ npm run dev
 
 - Backend API + Swagger UI: http://127.0.0.1:8000/docs
 - Frontend: http://localhost:3000
+- Redis Cache Server: `redis://localhost:6379/0`
+
 
 ---
 
