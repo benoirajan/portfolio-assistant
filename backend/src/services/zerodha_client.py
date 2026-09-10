@@ -363,7 +363,7 @@ class ZerodhaService:
     def get_baskets(self) -> Tuple[List[Dict[str, Any]], Optional[str]]:
         """Fetches list of existing baskets from Zerodha."""
         if self.enctoken:
-            json_data, err = self._make_enctoken_request("/orders/baskets")
+            json_data, err = self._make_enctoken_request("/baskets")
             if json_data and json_data.get("status") == "success":
                 return json_data.get("data", []), None
             return [], err or "Failed to fetch Zerodha baskets"
@@ -400,7 +400,7 @@ class ZerodhaService:
 
         if self.enctoken:
             if basket_id:
-                path = f"/orders/baskets/{basket_id}/items"
+                path = f"/baskets/{basket_id}/items"
                 json_data, err = self._make_enctoken_request(path, method="POST", payload={"orders": formatted_orders})
                 if json_data and json_data.get("status") == "success":
                     return {
@@ -411,7 +411,7 @@ class ZerodhaService:
                     }, None
                 return None, err or f"Failed to add items to basket {basket_id}"
             else:
-                path = "/orders/baskets"
+                path = "/baskets"
                 payload = {
                     "name": basket_name,
                     "orders": formatted_orders
