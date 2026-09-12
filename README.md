@@ -116,6 +116,9 @@ npm run dev
 
 - [x] **Phase 1**: Zerodha OAuth 2.0 Authentication & Holdings Ingestion MVP
 - [x] **Phase 2**: Fundamental Analytics (P/E, ROE), XIRR & Tax Harvesting (STCG/LTCG)
-- [ ] **Phase 3**: AI Advisory Engine (Google Gemini — Buy/Sell/Hold recommendations)
+- [x] **Phase 3**: AI Advisory Engine (Google Gemini — Buy/Sell/Hold recommendations)
 - [ ] **Phase 4**: Order Staging Safety Queue & Telegram / Webhook Alerts
-- [ ] **Phase 5**: React Frontend (Next.js + Tailwind + Recharts)
+- [/] **Phase 5**: React Frontend Dashboard (Next.js 14 + Tailwind + Recharts)
+- [ ] **Phase 6**: Multi-Tenant Identity & Universal Ingestion (CAS PDF, CSV Upload, Dhan, Angel One & Upstox APIs)
+- [ ] **Phase 7**: SaaS Monetization Infrastructure (Freemium/Pro/Elite Tiers, Razorpay Webhooks, Entitlement Middleware & Gemini Quota Limiting)
+
