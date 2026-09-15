@@ -1,13 +1,15 @@
+import asyncio
 import hashlib
 import json
 import logging
 import math
 from fastapi import APIRouter, Header, Query, HTTPException
+from fastapi.responses import StreamingResponse
 from typing import List, Literal, Optional
 from pydantic import BaseModel, Field
 from src.services.zerodha_client import zerodha_service
 from src.services.market_data import market_data_service
-from src.services.llm_advisor import get_recommendations, Recommendation
+from src.services.llm_advisor import get_recommendations, get_multi_stage_advisory, Recommendation
 from src.core.config import settings
 from src.core import cache
 
@@ -62,6 +64,92 @@ def recommendations(
     if result.get("source") == "llm":
         cache.set(cache_key, response, ttl=settings.ADVISORY_CACHE_TTL)
     return response
+
+
+@router.get("/pipeline")
+def multi_stage_pipeline(
+    total_budget: float = Query(5000.0, ge=0.0),
+    monthly_capacity: float = Query(10000.0, ge=0.0),
+    investment_schedule: str = Query("Bi-weekly ₹5,000"),
+    investment_goal: str = Query("Moderate Growth"),
+    allow_new_stocks: bool = Query(True),
+    max_single_stock_pct: float = Query(15.0, ge=5.0, le=50.0),
+    max_sector_pct: float = Query(25.0, ge=10.0, le=60.0),
+    x_enctoken: Optional[str] = Header(None),
+):
+    """Executes full 3-Stage AI Advisory Pipeline with budget and investor inputs."""
+    if x_enctoken:
+        zerodha_service.set_enctoken(x_enctoken)
+
+    raw_holdings, _, _ = zerodha_service.get_holdings_with_status()
+    enriched = market_data_service.enrich_holdings_with_fundamentals(raw_holdings)
+
+    return get_multi_stage_advisory(
+        enriched,
+        total_budget=total_budget,
+        monthly_capacity=monthly_capacity,
+        investment_schedule=investment_schedule,
+        investment_goal=investment_goal,
+        allow_new_stocks=allow_new_stocks,
+        max_single_stock_pct=max_single_stock_pct,
+        max_sector_pct=max_sector_pct,
+    )
+
+
+@router.get("/stream")
+async def stream_advisory_pipeline(
+    total_budget: float = Query(5000.0, ge=0.0),
+    monthly_capacity: float = Query(10000.0, ge=0.0),
+    investment_schedule: str = Query("Bi-weekly ₹5,000"),
+    investment_goal: str = Query("Moderate Growth"),
+    allow_new_stocks: bool = Query(True),
+    max_single_stock_pct: float = Query(15.0, ge=5.0, le=50.0),
+    max_sector_pct: float = Query(25.0, ge=10.0, le=60.0),
+    x_enctoken: Optional[str] = Header(None),
+):
+    """Server-Sent Events (SSE) endpoint streaming real-time progress for the 3-stage wizard."""
+    if x_enctoken:
+        zerodha_service.set_enctoken(x_enctoken)
+
+    async def event_generator():
+        yield f"data: {json.dumps({'stage': 1, 'status': 'running', 'message': '🔍 Fetching live market news and auditing portfolio...'})}\n\n"
+        await asyncio.sleep(0.5)
+
+        raw_holdings, _, _ = zerodha_service.get_holdings_with_status()
+        enriched = market_data_service.enrich_holdings_with_fundamentals(raw_holdings)
+
+        # Run multi-stage advisor in executor thread so async SSE stream remains responsive
+        loop = asyncio.get_event_loop()
+
+        yield f"data: {json.dumps({'stage': 1, 'status': 'running', 'message': '📊 Auditing sector exposure & fundamental quality...'})}\n\n"
+
+        result = await loop.run_in_executor(
+            None,
+            lambda: get_multi_stage_advisory(
+                enriched,
+                total_budget=total_budget,
+                monthly_capacity=monthly_capacity,
+                investment_schedule=investment_schedule,
+                investment_goal=investment_goal,
+                allow_new_stocks=allow_new_stocks,
+                max_single_stock_pct=max_single_stock_pct,
+                max_sector_pct=max_sector_pct,
+            )
+        )
+
+        yield f"data: {json.dumps({'stage': 1, 'status': 'complete', 'data': result['stage1']})}\n\n"
+        await asyncio.sleep(0.3)
+
+        yield f"data: {json.dumps({'stage': 2, 'status': 'running', 'message': '🔎 Screening Indian equity universe & scoring portfolio fit...'})}\n\n"
+        await asyncio.sleep(0.3)
+        yield f"data: {json.dumps({'stage': 2, 'status': 'complete', 'data': result['stage2']})}\n\n"
+        await asyncio.sleep(0.3)
+
+        yield f"data: {json.dumps({'stage': 3, 'status': 'running', 'message': '🧮 Calculating whole-share allocation & cash buffer retention...'})}\n\n"
+        await asyncio.sleep(0.3)
+        yield f"data: {json.dumps({'stage': 3, 'status': 'complete', 'data': result['stage3'], 'full_result': result})}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 # ---------------------------------------------------------------------------

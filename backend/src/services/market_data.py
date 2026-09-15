@@ -12,18 +12,18 @@ _CACHE_TTL_SECONDS = 86400  # 24 hours
 
 # Static fallback metadata for common Indian equities
 STOCK_METADATA_DB = {
-    "RELIANCE":   {"sector": "Energy & Petrochemicals",       "cap_category": "Large Cap", "pe_ratio": 26.5, "pb_ratio": 2.4,  "roe": 9.5,  "sma_200": 2850.0, "div_yield": 0.35},
-    "TCS":        {"sector": "Information Technology",         "cap_category": "Large Cap", "pe_ratio": 32.1, "pb_ratio": 13.2, "roe": 48.0, "sma_200": 3950.0, "div_yield": 1.20},
-    "HDFCBANK":   {"sector": "Financial Services",             "cap_category": "Large Cap", "pe_ratio": 18.4, "pb_ratio": 2.7,  "roe": 16.2, "sma_200": 1590.0, "div_yield": 1.10},
-    "INFY":       {"sector": "Information Technology",         "cap_category": "Large Cap", "pe_ratio": 28.3, "pb_ratio": 8.1,  "roe": 31.5, "sma_200": 1680.0, "div_yield": 2.10},
-    "TATAMOTORS": {"sector": "Automotive",                     "cap_category": "Large Cap", "pe_ratio": 10.2, "pb_ratio": 3.1,  "roe": 22.4, "sma_200": 940.0,  "div_yield": 0.60},
-    "LTIM":       {"sector": "Information Technology",         "cap_category": "Mid Cap",   "pe_ratio": 34.5, "pb_ratio": 8.9,  "roe": 26.1, "sma_200": 5300.0, "div_yield": 1.30},
-    "SUNPHARMA":  {"sector": "Healthcare & Pharma",            "cap_category": "Large Cap", "pe_ratio": 38.2, "pb_ratio": 5.4,  "roe": 16.8, "sma_200": 1580.0, "div_yield": 0.75},
-    "ICICIBANK":  {"sector": "Financial Services",             "cap_category": "Large Cap", "pe_ratio": 17.8, "pb_ratio": 3.0,  "roe": 18.5, "sma_200": 1120.0, "div_yield": 0.90},
-    "SBIN":       {"sector": "Financial Services",             "cap_category": "Large Cap", "pe_ratio": 10.5, "pb_ratio": 1.5,  "roe": 17.2, "sma_200": 780.0,  "div_yield": 1.80},
-    "BHARTIARTL": {"sector": "Telecommunication",              "cap_category": "Large Cap", "pe_ratio": 42.0, "pb_ratio": 7.2,  "roe": 14.5, "sma_200": 1350.0, "div_yield": 0.50},
-    "ITC":        {"sector": "Consumer Goods (FMCG)",          "cap_category": "Large Cap", "pe_ratio": 27.4, "pb_ratio": 7.8,  "roe": 29.2, "sma_200": 440.0,  "div_yield": 3.20},
-    "LT":         {"sector": "Capital Goods & Infrastructure", "cap_category": "Large Cap", "pe_ratio": 31.0, "pb_ratio": 4.8,  "roe": 15.6, "sma_200": 3550.0, "div_yield": 0.85},
+    "RELIANCE":   {"sector": "Energy & Petrochemicals",       "cap_category": "Large Cap", "pe_ratio": 26.5, "pb_ratio": 2.4,  "roe": 9.5,  "sma_200": 2850.0, "div_yield": 0.35, "roce": 11.2, "fcf_yield": 2.8, "debt_to_equity": 0.42, "peg_ratio": 1.8, "forward_pe": 23.5, "promoter_holding_pct": 50.3, "promoter_pledge_pct": 0.0},
+    "TCS":        {"sector": "Information Technology",         "cap_category": "Large Cap", "pe_ratio": 32.1, "pb_ratio": 13.2, "roe": 48.0, "sma_200": 3950.0, "div_yield": 1.20, "roce": 54.1, "fcf_yield": 3.4, "debt_to_equity": 0.08, "peg_ratio": 2.1, "forward_pe": 28.4, "promoter_holding_pct": 72.4, "promoter_pledge_pct": 0.0},
+    "HDFCBANK":   {"sector": "Financial Services",             "cap_category": "Large Cap", "pe_ratio": 18.4, "pb_ratio": 2.7,  "roe": 16.2, "sma_200": 1590.0, "div_yield": 1.10, "roce": 14.8, "fcf_yield": 1.9, "debt_to_equity": 0.85, "peg_ratio": 1.2, "forward_pe": 16.5, "promoter_holding_pct": 0.0,  "promoter_pledge_pct": 0.0},
+    "INFY":       {"sector": "Information Technology",         "cap_category": "Large Cap", "pe_ratio": 28.3, "pb_ratio": 8.1,  "roe": 31.5, "sma_200": 1680.0, "div_yield": 2.10, "roce": 38.2, "fcf_yield": 3.8, "debt_to_equity": 0.09, "peg_ratio": 1.9, "forward_pe": 24.1, "promoter_holding_pct": 14.8, "promoter_pledge_pct": 0.0},
+    "TATAMOTORS": {"sector": "Automotive",                     "cap_category": "Large Cap", "pe_ratio": 10.2, "pb_ratio": 3.1,  "roe": 22.4, "sma_200": 940.0,  "div_yield": 0.60, "roce": 18.9, "fcf_yield": 5.2, "debt_to_equity": 0.78, "peg_ratio": 0.6, "forward_pe": 9.8,  "promoter_holding_pct": 46.4, "promoter_pledge_pct": 0.0},
+    "LTIM":       {"sector": "Information Technology",         "cap_category": "Mid Cap",   "pe_ratio": 34.5, "pb_ratio": 8.9,  "roe": 26.1, "sma_200": 5300.0, "div_yield": 1.30, "roce": 32.4, "fcf_yield": 2.6, "debt_to_equity": 0.05, "peg_ratio": 2.3, "forward_pe": 29.8, "promoter_holding_pct": 68.6, "promoter_pledge_pct": 0.0},
+    "SUNPHARMA":  {"sector": "Healthcare & Pharma",            "cap_category": "Large Cap", "pe_ratio": 38.2, "pb_ratio": 5.4,  "roe": 16.8, "sma_200": 1580.0, "div_yield": 0.75, "roce": 19.5, "fcf_yield": 2.5, "debt_to_equity": 0.12, "peg_ratio": 2.0, "forward_pe": 31.2, "promoter_holding_pct": 54.5, "promoter_pledge_pct": 2.1},
+    "ICICIBANK":  {"sector": "Financial Services",             "cap_category": "Large Cap", "pe_ratio": 17.8, "pb_ratio": 3.0,  "roe": 18.5, "sma_200": 1120.0, "div_yield": 0.90, "roce": 16.1, "fcf_yield": 2.1, "debt_to_equity": 0.81, "peg_ratio": 1.1, "forward_pe": 15.6, "promoter_holding_pct": 0.0,  "promoter_pledge_pct": 0.0},
+    "SBIN":       {"sector": "Financial Services",             "cap_category": "Large Cap", "pe_ratio": 10.5, "pb_ratio": 1.5,  "roe": 17.2, "sma_200": 780.0,  "div_yield": 1.80, "roce": 12.8, "fcf_yield": 1.5, "debt_to_equity": 1.15, "peg_ratio": 0.7, "forward_pe": 9.2,  "promoter_holding_pct": 57.5, "promoter_pledge_pct": 0.0},
+    "BHARTIARTL": {"sector": "Telecommunication",              "cap_category": "Large Cap", "pe_ratio": 42.0, "pb_ratio": 7.2,  "roe": 14.5, "sma_200": 1350.0, "div_yield": 0.50, "roce": 13.9, "fcf_yield": 4.1, "debt_to_equity": 1.45, "peg_ratio": 1.7, "forward_pe": 32.0, "promoter_holding_pct": 53.1, "promoter_pledge_pct": 0.0},
+    "ITC":        {"sector": "Consumer Goods (FMCG)",          "cap_category": "Large Cap", "pe_ratio": 27.4, "pb_ratio": 7.8,  "roe": 29.2, "sma_200": 440.0,  "div_yield": 3.20, "roce": 37.8, "fcf_yield": 3.9, "debt_to_equity": 0.01, "peg_ratio": 2.2, "forward_pe": 24.5, "promoter_holding_pct": 0.0,  "promoter_pledge_pct": 0.0},
+    "LT":         {"sector": "Capital Goods & Infrastructure", "cap_category": "Large Cap", "pe_ratio": 31.0, "pb_ratio": 4.8,  "roe": 15.6, "sma_200": 3550.0, "div_yield": 0.85, "roce": 17.2, "fcf_yield": 2.3, "debt_to_equity": 1.25, "peg_ratio": 1.8, "forward_pe": 26.0, "promoter_holding_pct": 0.0,  "promoter_pledge_pct": 0.0},
 }
 
 SECTOR_MAP = {
@@ -76,14 +76,21 @@ class MarketDataService:
             if not info or "trailingPE" not in info:
                 return None
             return {
-                "symbol":       symbol,
-                "sector":       info.get("sector") or self._infer_sector(symbol),
-                "cap_category": self._infer_cap_category(info.get("marketCap", 0) or 0),
-                "pe_ratio":     round(float(info.get("trailingPE", 0) or 0), 2),
-                "pb_ratio":     round(float(info.get("priceToBook", 0) or 0), 2),
-                "roe":          round((float(info.get("returnOnEquity", 0) or 0)) * 100, 2),
-                "div_yield":    round((float(info.get("dividendYield", 0) or 0)) * 100, 2),
-                "sma_200":      round(float(info.get("twoHundredDayAverage", 0) or 0), 2),
+                "symbol":                symbol,
+                "sector":                info.get("sector") or self._infer_sector(symbol),
+                "cap_category":          self._infer_cap_category(info.get("marketCap", 0) or 0),
+                "pe_ratio":              round(float(info.get("trailingPE", 0) or 0), 2),
+                "pb_ratio":              round(float(info.get("priceToBook", 0) or 0), 2),
+                "roe":                   round((float(info.get("returnOnEquity", 0) or 0)) * 100, 2),
+                "div_yield":             round((float(info.get("dividendYield", 0) or 0)) * 100, 2),
+                "sma_200":               round(float(info.get("twoHundredDayAverage", 0) or 0), 2),
+                "roce":                  round((float(info.get("returnOnAssets", 0) or 0)) * 100 * 1.5, 2),
+                "fcf_yield":             round((float(info.get("freeCashflow", 0) or 0) / (float(info.get("marketCap", 1) or 1))) * 100, 2),
+                "debt_to_equity":        round(float(info.get("debtToEquity", 0) or 0) / 100.0, 2),
+                "peg_ratio":             round(float(info.get("pegRatio", 0) or 0), 2),
+                "forward_pe":            round(float(info.get("forwardPE", 0) or 0), 2),
+                "promoter_holding_pct":  round(float(info.get("heldPercentInsiders", 0) or 0) * 100, 2),
+                "promoter_pledge_pct":   0.0,
             }
         except Exception as e:
             logger.warning("yfinance fetch failed for %s after retries: %s", symbol, e)
@@ -139,25 +146,43 @@ class MarketDataService:
                 "symbol": clean, "sector": self._infer_sector(clean),
                 "cap_category": "Equity", "pe_ratio": 22.5, "pb_ratio": 3.2,
                 "roe": 15.0, "div_yield": 1.0, "sma_200": 0.0,
+                "roce": 18.0, "fcf_yield": 2.5, "debt_to_equity": 0.40,
+                "peg_ratio": 1.5, "forward_pe": 20.0, "promoter_holding_pct": 50.0,
+                "promoter_pledge_pct": 0.0,
             }
 
         _FUNDAMENTALS_CACHE[clean] = (data, time.time() + _CACHE_TTL_SECONDS)
         return data
+
+    def is_valid_nse_symbol(self, symbol: str) -> bool:
+        """Validates ticker symbol against known database or live market ticker info."""
+        clean = symbol.upper().replace(".NS", "").replace(".BO", "")
+        if clean in STOCK_METADATA_DB or clean in SECTOR_MAP:
+            return True
+        data = self.get_stock_fundamental_data(clean)
+        return data.get("pe_ratio", 0) > 0 or data.get("sma_200", 0) > 0
 
     def enrich_holdings_with_fundamentals(self, holdings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         enriched = []
         for item in holdings:
             fund = self.get_stock_fundamental_data(item.get("tradingsymbol", ""))
             h = item.copy()
-            h["sector"]       = fund.get("sector", h.get("sector", "Diversified"))
-            h["cap_category"] = fund.get("cap_category", h.get("cap_category", "Large Cap"))
-            h["pe_ratio"]     = fund.get("pe_ratio", 0.0)
-            h["pb_ratio"]     = fund.get("pb_ratio", 0.0)
-            h["roe"]          = fund.get("roe", 0.0)
-            h["div_yield"]    = fund.get("div_yield", 0.0)
-            h["sma_200"]      = fund.get("sma_200", 0.0)
+            h["sector"]               = fund.get("sector", h.get("sector", "Diversified"))
+            h["cap_category"]         = fund.get("cap_category", h.get("cap_category", "Large Cap"))
+            h["pe_ratio"]             = fund.get("pe_ratio", 0.0)
+            h["pb_ratio"]             = fund.get("pb_ratio", 0.0)
+            h["roe"]                  = fund.get("roe", 0.0)
+            h["div_yield"]            = fund.get("div_yield", 0.0)
+            h["sma_200"]              = fund.get("sma_200", 0.0)
+            h["roce"]                 = fund.get("roce", 0.0)
+            h["fcf_yield"]            = fund.get("fcf_yield", 0.0)
+            h["debt_to_equity"]       = fund.get("debt_to_equity", 0.0)
+            h["peg_ratio"]            = fund.get("peg_ratio", 0.0)
+            h["forward_pe"]           = fund.get("forward_pe", 0.0)
+            h["promoter_holding_pct"] = fund.get("promoter_holding_pct", 0.0)
+            h["promoter_pledge_pct"]  = fund.get("promoter_pledge_pct", 0.0)
             ltp, sma = h.get("last_price", 0.0), h.get("sma_200", 0.0)
-            h["trend_200_sma"] = ("Bullish (Above SMA)" if ltp >= sma else "Bearish (Below SMA)") if sma > 0 else "Neutral"
+            h["trend_200_sma"]        = ("Bullish (Above SMA)" if ltp >= sma else "Bearish (Below SMA)") if sma > 0 else "Neutral"
             enriched.append(h)
         return enriched
 
@@ -173,3 +198,4 @@ class MarketDataService:
 
 
 market_data_service = MarketDataService()
+

@@ -165,6 +165,95 @@ export interface LoginUrlResponse {
   login_url: string
 }
 
+// ── Multi-Stage Pipeline Advisory ──────────────────────────────────────────────────
+
+export interface SectorHealth {
+  sector: string
+  weight_pct: number
+  status: string
+  comment: string
+}
+
+export interface StockHealth {
+  symbol: string
+  allocation_pct: number
+  business_quality: string
+  financial_quality: string
+  valuation: string
+  long_term_outlook: string
+  status: string
+  comment: string
+}
+
+export interface Stage1Diagnosis {
+  overall_quality: string
+  main_strength: string
+  main_weakness: string
+  biggest_concentration_risk: string
+  most_important_thing_to_monitor: string
+  sector_analysis: SectorHealth[]
+  stock_analysis: StockHealth[]
+  portfolio_risks: string[]
+  portfolio_strengths: string[]
+  future_capital_direction: string[]
+}
+
+export interface CandidateOpportunity {
+  symbol: string
+  sector: string
+  is_existing_holding: boolean
+  conviction_tier: 'HIGH_CONVICTION' | 'GOOD_OPPORTUNITY' | 'WATCHLIST' | 'AVOID_FOR_NOW'
+  valuation_assessment: string
+  portfolio_fit_summary: string
+  main_risk: string
+  rationale: string
+}
+
+export interface Stage2Ranking {
+  opportunity_summary: string
+  existing_vs_new_recommendation: string
+  strongest_opportunity: string
+  top_opportunities: CandidateOpportunity[]
+  sectors_to_prefer: string[]
+  sectors_to_be_careful: string[]
+  sectors_to_avoid: string[]
+}
+
+export interface WholeSharePurchase {
+  symbol: string
+  action: 'BUY' | 'HOLD' | 'TRIM' | 'SELL'
+  current_price: number
+  quantity: number
+  amount: number
+  rationale: string
+}
+
+export interface Stage3Execution {
+  action: 'BUY' | 'PARTIALLY_INVEST' | 'WAIT'
+  allocated_amount: number
+  cash_to_keep: number
+  purchases: WholeSharePurchase[]
+  why_this_decision: string[]
+  portfolio_impact: string[]
+  why_not_others: string
+  risks_to_understand: string[]
+  data_date_verified: string
+  simple_action_recommendation: string
+}
+
+export interface MultiStagePipelineResponse {
+  status: string
+  stage1: Stage1Diagnosis
+  stage2: Stage2Ranking
+  stage3: Stage3Execution
+  rule_flags: RuleFlag[]
+  source: 'llm' | 'rule_engine'
+  llm_provider?: string
+  total_budget: number
+  monthly_capacity: number
+}
+
 // ── Misc ──────────────────────────────────────────────────────────────────────
 
 export type ConnectionMode = 'demo' | 'enctoken' | 'kite'
+

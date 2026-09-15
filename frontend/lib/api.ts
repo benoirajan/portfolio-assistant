@@ -11,6 +11,7 @@ import type {
   ZerodhaBasket,
   ExportZerodhaBasketPayload,
   ExportZerodhaBasketResponse,
+  MultiStagePipelineResponse,
 } from './types'
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000'
@@ -50,6 +51,17 @@ export const fetchAdvisory = (
     })
     .then((r) => r.data)
 
+export const fetchMultiStagePipeline = (params: {
+  total_budget: number
+  monthly_capacity: number
+  investment_schedule: string
+  investment_goal: string
+  allow_new_stocks: boolean
+  max_single_stock_pct?: number
+  max_sector_pct?: number
+}): Promise<MultiStagePipelineResponse> =>
+  apiClient.get('/api/v1/advisory/pipeline', { params }).then((r) => r.data)
+
 export const fetchLoginUrl = (): Promise<LoginUrlResponse> =>
   apiClient.get('/api/v1/auth/login-url').then((r) => r.data)
 
@@ -74,3 +86,4 @@ export const exportZerodhaBasket = (
   payload: ExportZerodhaBasketPayload
 ): Promise<ExportZerodhaBasketResponse> =>
   apiClient.post('/api/v1/advisory/export-zerodha-basket', payload).then((r) => r.data)
+
