@@ -21,6 +21,7 @@ def search_company_news(symbol: str, count: int = 3) -> List[Dict[str, str]]:
     Searches for recent news and financial updates for a given Indian stock symbol (NSE/BSE).
     Returns a list of dicts with title, snippet, and source.
     """
+    logger.info("Executing tool 'search_company_news' for symbol='%s' (count=%d)", symbol, count)
     cache_key = f"news_search:stock:{symbol}"
     cached = cache_get(cache_key)
     if cached is not None:
@@ -47,6 +48,7 @@ def search_sector_news(sector: str, count: int = 3) -> List[Dict[str, str]]:
     """
     Searches for macro and sector trends for Indian equity markets.
     """
+    logger.info("Executing tool 'search_sector_news' for sector='%s' (count=%d)", sector, count)
     cache_key = f"news_search:sector:{sector}"
     cached = cache_get(cache_key)
     if cached is not None:

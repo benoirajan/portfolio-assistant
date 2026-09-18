@@ -270,22 +270,32 @@ class _GeminiRateLimitError(Exception):
     pass
 
 
-def _call_gemini_schema(prompt: str, schema_class: Any) -> Optional[str]:
+def _call_gemini_schema(
+    prompt: str,
+    schema_class: Any,
+    tools: Optional[List[Any]] = None,
+) -> Optional[str]:
     try:
-        os.environ.setdefault("GEMINI_API_KEY", settings.GEMINI_API_KEY)
         from google import genai
         from google.genai import types
 
-        client = genai.Client()
-        config = types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=schema_class,
-            temperature=0.2,
-            max_output_tokens=3072,
-        )
+        api_key = settings.GEMINI_API_KEY
+        client = genai.Client(api_key=api_key) if api_key else genai.Client()
+
+        config_kwargs: Dict[str, Any] = {
+            "response_mime_type": "application/json",
+            "response_schema": schema_class,
+            "temperature": 0.2,
+            "max_output_tokens": 3072,
+        }
+        if tools:
+            config_kwargs["tools"] = tools
+
+        config = types.GenerateContentConfig(**config_kwargs)
 
         logger.info("Sending multi-stage request to Gemini API (schema=%s, prompt_len=%d)",
                     schema_class.__name__, len(prompt))
+        logger.debug("Gemini API request prompt payload (schema=%s):\n%s", schema_class.__name__, prompt)
 
         @retry(
             max_attempts=3,
@@ -308,7 +318,16 @@ def _call_gemini_schema(prompt: str, schema_class: Any) -> Optional[str]:
                 raise
 
         response = _generate()
-        return response.text
+        if hasattr(response, "function_calls") and response.function_calls:
+            for fn in response.function_calls:
+                logger.info("Gemini requested tool call: function='%s', args=%s", getattr(fn, "name", str(fn)), getattr(fn, "args", {}))
+
+        raw_text = response.text if hasattr(response, "text") and response.text else None
+        if not raw_text and getattr(response, "candidates", None) and response.candidates[0].content and response.candidates[0].content.parts:
+            raw_text = response.candidates[0].content.parts[0].text
+
+        logger.debug("Gemini API raw response (schema=%s):\n%s", schema_class.__name__, raw_text)
+        return raw_text
     except Exception as e:
         logger.error("Gemini API call failed for %s: %s", schema_class.__name__, e)
         return None
@@ -468,6 +487,7 @@ def get_multi_stage_advisory(
     stage1_data: Optional[Stage1Diagnosis] = None
     if settings.LLM_PROVIDER == "gemini" and settings.GEMINI_API_KEY:
         p1 = _build_stage1_prompt(holdings, rule_flags, investment_goal, total_value, news_text)
+        logger.debug("Gemini Stage 1 Prompt Payload:\n%s", p1)
         res1 = _call_gemini_schema(p1, Stage1Diagnosis)
         if res1:
             try:
@@ -484,6 +504,7 @@ def get_multi_stage_advisory(
     stage2_data: Optional[Stage2Ranking] = None
     if source == "llm" and settings.LLM_PROVIDER == "gemini" and settings.GEMINI_API_KEY:
         p2 = _build_stage2_prompt(stage1_data, holdings, investment_goal, allow_new_stocks)
+        logger.debug("Gemini Stage 2 Prompt Payload:\n%s", p2)
         res2 = _call_gemini_schema(p2, Stage2Ranking)
         if res2:
             try:
@@ -506,6 +527,7 @@ def get_multi_stage_advisory(
     stage3_data: Optional[Stage3Execution] = None
     if source == "llm" and settings.LLM_PROVIDER == "gemini" and settings.GEMINI_API_KEY:
         p3 = _build_stage3_prompt(stage1_data, stage2_data, holdings, total_budget, monthly_capacity, investment_schedule, investment_goal)
+        logger.debug("Gemini Stage 3 Prompt Payload:\n%s", p3)
         res3 = _call_gemini_schema(p3, Stage3Execution)
         if res3:
             try:
@@ -585,25 +607,39 @@ Rules you MUST follow:
 """
 
 
-def _call_gemini(prompt: str) -> Optional[str]:
+def _call_gemini(prompt: str, tools: Optional[List[Any]] = None) -> Optional[str]:
     try:
-        os.environ.setdefault("GEMINI_API_KEY", settings.GEMINI_API_KEY)
         from google import genai
         from google.genai import types
 
-        client = genai.Client()
-        config = types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=RecommendationList,
-            temperature=0.2,
-            max_output_tokens=2048,
-        )
+        api_key = settings.GEMINI_API_KEY
+        client = genai.Client(api_key=api_key) if api_key else genai.Client()
+
+        config_kwargs: Dict[str, Any] = {
+            "response_mime_type": "application/json",
+            "response_schema": RecommendationList,
+            "temperature": 0.2,
+            "max_output_tokens": 2048,
+        }
+        if tools:
+            config_kwargs["tools"] = tools
+
+        config = types.GenerateContentConfig(**config_kwargs)
+
+        logger.info("Sending request to Gemini API (schema=RecommendationList, prompt_len=%d)", len(prompt))
+        logger.debug("Gemini Legacy Prompt Payload:\n%s", prompt)
+
         response = client.models.generate_content(
             model=settings.GEMINI_MODEL,
             contents=prompt,
             config=config,
         )
-        return response.text
+        raw_text = response.text if hasattr(response, "text") and response.text else None
+        if not raw_text and getattr(response, "candidates", None) and response.candidates[0].content and response.candidates[0].content.parts:
+            raw_text = response.candidates[0].content.parts[0].text
+
+        logger.debug("Gemini Legacy Raw Response:\n%s", raw_text)
+        return raw_text
     except Exception as e:
         logger.error("Gemini legacy call failed: %s", e)
         return None
@@ -671,6 +707,7 @@ def get_recommendations(
 
     if settings.LLM_PROVIDER == "gemini" and settings.GEMINI_API_KEY:
         prompt = _build_prompt(holdings, rule_flags, investment_goal, total_value)
+        logger.debug("Gemini Legacy Prompt Payload:\n%s", prompt)
         llm_raw = _call_gemini(prompt)
         llm_provider = settings.GEMINI_MODEL
     elif settings.LLM_PROVIDER == "ollama":
