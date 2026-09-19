@@ -43,7 +43,7 @@ sequenceDiagram
   - Market cap category (Large/Mid/Small)
   - User investment goal (e.g., Moderate Growth)
 - Structured JSON prompt template sent to `gemini-2.0-flash`.
-- Output parsed into Pydantic `RecommendationList` schema: `symbol`, `action`, `target_allocation_pct`, `confidence_score`, `rationale`.
+- Output parsed into Pydantic `Stage3Execution` schema: `symbol`, `action`, `target_allocation_pct`, `confidence_score`, `rationale`.
 - **Alternative LLM**: For stricter data privacy, the service supports a self-hosted model via Ollama (e.g., Mistral 7B). Configure via `LLM_PROVIDER=ollama` in `.env`.
 
 ### 3.3 Safety Guardrails & Validation (`src/services/llm_advisor.py`)

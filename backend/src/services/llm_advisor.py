@@ -45,17 +45,6 @@ class Recommendation(BaseModel):
         return round(v, 2)
 
 
-class RecommendationList(BaseModel):
-    recommendations: List[Recommendation]
-    investment_goal: str = ""
-
-    @model_validator(mode="after")
-    def validate_guardrails(self) -> "RecommendationList":
-        total_alloc = sum(r.target_allocation_pct for r in self.recommendations)
-        if total_alloc > 100.0:
-            raise ValueError(f"Sum of target_allocation_pct is {total_alloc:.1f}% — exceeds 100%")
-        return self
-
 
 # ---------------------------------------------------------------------------
 # Pydantic Schemas for Multi-Stage Pipeline (Stage 1, 2, 3)
@@ -178,6 +167,13 @@ RULE ENGINE FLAGS:
 LIVE NEWS & MARKET CONTEXT:
 {news_context}
 
+INVESTMENT-THESIS RULES:
+- This is long-term investing, not short-term trading.
+- Do not predict short-term price movements.
+- Do not automatically consider a stock attractive because its price has fallen or its P/E appears low.
+- Focus on whether the underlying long-term investment thesis remains strong.
+- Do not fabricate financial figures.
+
 Analyse the portfolio as a whole. Evaluate:
 1. Overall diversification and hidden economic concentration.
 2. Business and financial quality of holdings.
@@ -209,6 +205,13 @@ Future Directions: {', '.join(stage1.future_capital_direction)}
 EXISTING HOLDINGS SYMBOLS: {', '.join(existing_symbols)}
 ALLOW NEW INDIAN EQUITY CANDIDATES: {allow_new_stocks}
 
+INVESTMENT-THESIS RULES:
+- This is long-term investing, not short-term trading.
+- Do not predict short-term price movements.
+- Do not automatically consider a stock attractive because its price has fallen or its P/E appears low.
+- Focus on whether the underlying long-term investment thesis remains strong.
+- Do not fabricate financial figures.
+
 Instructions:
 1. Compare existing holdings vs potential new Indian listed equities.
 2. Evaluate incremental portfolio benefit and opportunity cost ("Which candidate adds the most value at the current portfolio state?").
@@ -231,8 +234,11 @@ def _build_stage3_prompt(
     monthly_capacity: float,
     investment_schedule: str,
     investment_goal: str,
+    candidate_prices: Dict[str, float] = None,
 ) -> str:
+    candidate_prices = candidate_prices or {}
     holding_prices = {h.get("tradingsymbol", ""): h.get("last_price", 0.0) for h in holdings}
+    holding_prices.update(candidate_prices)
     return f"""ROLE: Portfolio decision support analyst for an Indian retail investor.
 STAGE 3 TASK: Make the final bounded investment decision for today's available budget.
 
@@ -252,6 +258,13 @@ Top Candidates: {json.dumps([o.model_dump() for o in stage2.top_opportunities], 
 
 CURRENT HOLDING PRICES:
 {json.dumps(holding_prices, indent=2)}
+
+INVESTMENT-THESIS RULES:
+- This is long-term investing, not short-term trading.
+- Do not predict short-term price movements.
+- Do not automatically consider a stock attractive because its price has fallen or its P/E appears low.
+- Focus on whether the underlying long-term investment thesis remains strong.
+- Do not fabricate financial figures.
 
 Decision Rules:
 1. Choose ONE action: BUY (invest full budget), PARTIALLY_INVEST (invest part, keep cash buffer), or WAIT (invest ₹0).
@@ -333,24 +346,7 @@ def _call_gemini_schema(
         return None
 
 
-def _call_ollama_json(prompt: str) -> Optional[str]:
-    try:
-        import requests
 
-        @retry(max_attempts=3, base_delay=2.0, multiplier=2.0, retryable_on=(Exception,))
-        def _generate():
-            resp = requests.post(
-                f"{settings.OLLAMA_BASE_URL}/api/generate",
-                json={"model": settings.OLLAMA_MODEL, "prompt": prompt, "format": "json", "stream": False},
-                timeout=60,
-            )
-            resp.raise_for_status()
-            return resp.json().get("response", "")
-
-        return _generate()
-    except Exception as e:
-        logger.error("Ollama API call failed: %s", e)
-        return None
 
 
 # ---------------------------------------------------------------------------
@@ -487,7 +483,6 @@ def get_multi_stage_advisory(
     stage1_data: Optional[Stage1Diagnosis] = None
     if settings.LLM_PROVIDER == "gemini" and settings.GEMINI_API_KEY:
         p1 = _build_stage1_prompt(holdings, rule_flags, investment_goal, total_value, news_text)
-        logger.debug("Gemini Stage 1 Prompt Payload:\n%s", p1)
         res1 = _call_gemini_schema(p1, Stage1Diagnosis)
         if res1:
             try:
@@ -504,7 +499,6 @@ def get_multi_stage_advisory(
     stage2_data: Optional[Stage2Ranking] = None
     if source == "llm" and settings.LLM_PROVIDER == "gemini" and settings.GEMINI_API_KEY:
         p2 = _build_stage2_prompt(stage1_data, holdings, investment_goal, allow_new_stocks)
-        logger.debug("Gemini Stage 2 Prompt Payload:\n%s", p2)
         res2 = _call_gemini_schema(p2, Stage2Ranking)
         if res2:
             try:
@@ -525,9 +519,17 @@ def get_multi_stage_advisory(
 
     # --- STAGE 3 ---
     stage3_data: Optional[Stage3Execution] = None
+    
+    candidate_prices = {}
+    if stage2_data:
+        for cand in stage2_data.top_opportunities:
+            if not cand.is_existing_holding:
+                quote = market_data_service.get_live_quote(cand.symbol)
+                if quote and "last_price" in quote:
+                    candidate_prices[cand.symbol] = quote["last_price"]
+
     if source == "llm" and settings.LLM_PROVIDER == "gemini" and settings.GEMINI_API_KEY:
-        p3 = _build_stage3_prompt(stage1_data, stage2_data, holdings, total_budget, monthly_capacity, investment_schedule, investment_goal)
-        logger.debug("Gemini Stage 3 Prompt Payload:\n%s", p3)
+        p3 = _build_stage3_prompt(stage1_data, stage2_data, holdings, total_budget, monthly_capacity, investment_schedule, investment_goal, candidate_prices)
         res3 = _call_gemini_schema(p3, Stage3Execution)
         if res3:
             try:
@@ -556,114 +558,13 @@ def get_multi_stage_advisory(
 
 
 # ---------------------------------------------------------------------------
-# Legacy Single-Pass Recommendation Function (Backwards Compatibility)
+# Legacy Single-Pass Recommendation Function (Replaced by Rule Engine)
 # ---------------------------------------------------------------------------
-def _build_prompt(
-    holdings: List[Dict[str, Any]],
-    rule_flags: List[Dict[str, Any]],
-    investment_goal: str,
-    total_value: float,
-) -> str:
-    anonymized = []
-    for h in holdings:
-        val = h.get("quantity", 0) * h.get("last_price", 0)
-        weight = round((val / total_value) * 100, 2) if total_value > 0 else 0.0
-        anonymized.append({
-            "symbol": h.get("tradingsymbol", ""),
-            "weight_pct": weight,
-            "sector": h.get("sector", ""),
-            "cap_category": h.get("cap_category", "Large Cap"),
-            "pe_ratio": h.get("pe_ratio", 0.0),
-            "pb_ratio": h.get("pb_ratio", 0.0),
-            "roe_pct": h.get("roe", 0.0),
-            "div_yield_pct": h.get("div_yield", 0.0),
-            "trend_200_sma": h.get("trend_200_sma", "Neutral"),
-        })
-
-    flag_summary = [f["detail"] for f in rule_flags] if rule_flags else ["No rule violations detected."]
-
-    return f"""You are a SEBI-registered portfolio advisor AI for an Indian retail investor.
-
-INVESTMENT GOAL: {investment_goal}
-
-PORTFOLIO (anonymized — no absolute ₹ values):
-{json.dumps(anonymized, indent=2)}
-
-RULE ENGINE FLAGS:
-{chr(10).join(f"- {f}" for f in flag_summary)}
-
-TASK: Return a JSON object with key "recommendations" — a list where each item has:
-  - symbol: string (must be from the portfolio above)
-  - action: one of BUY, SELL, HOLD, TRIM
-  - target_allocation_pct: float (desired % of total portfolio, all must sum <= 100)
-  - confidence_score: float between 0.0 and 1.0
-  - rationale: 1-2 sentence plain-English explanation
-
-Rules you MUST follow:
-1. Only use symbols present in the portfolio above — no new tickers.
-2. Sum of all target_allocation_pct must not exceed 100.
-3. No single Small Cap / Mid Cap stock should exceed 20% target allocation.
-4. Respond ONLY with valid JSON — no markdown, no extra text.
-"""
-
-
-def _call_gemini(prompt: str, tools: Optional[List[Any]] = None) -> Optional[str]:
-    try:
-        from google import genai
-        from google.genai import types
-
-        api_key = settings.GEMINI_API_KEY
-        client = genai.Client(api_key=api_key) if api_key else genai.Client()
-
-        config_kwargs: Dict[str, Any] = {
-            "response_mime_type": "application/json",
-            "response_schema": RecommendationList,
-            "temperature": 0.2,
-            "max_output_tokens": 2048,
-        }
-        if tools:
-            config_kwargs["tools"] = tools
-
-        config = types.GenerateContentConfig(**config_kwargs)
-
-        logger.info("Sending request to Gemini API (schema=RecommendationList, prompt_len=%d)", len(prompt))
-        logger.debug("Gemini Legacy Prompt Payload:\n%s", prompt)
-
-        response = client.models.generate_content(
-            model=settings.GEMINI_MODEL,
-            contents=prompt,
-            config=config,
-        )
-        raw_text = response.text if hasattr(response, "text") and response.text else None
-        if not raw_text and getattr(response, "candidates", None) and response.candidates[0].content and response.candidates[0].content.parts:
-            raw_text = response.candidates[0].content.parts[0].text
-
-        logger.debug("Gemini Legacy Raw Response:\n%s", raw_text)
-        return raw_text
-    except Exception as e:
-        logger.error("Gemini legacy call failed: %s", e)
-        return None
-
-
-def _call_ollama(prompt: str) -> Optional[str]:
-    try:
-        import requests
-        resp = requests.post(
-            f"{settings.OLLAMA_BASE_URL}/api/generate",
-            json={"model": settings.OLLAMA_MODEL, "prompt": prompt, "stream": False},
-            timeout=60,
-        )
-        resp.raise_for_status()
-        return resp.json().get("response", "")
-    except Exception as e:
-        logger.error("Ollama legacy call failed: %s", e)
-        return None
-
-
 def _rule_based_recommendations(
     holdings: List[Dict[str, Any]],
     rule_flags: List[Dict[str, Any]],
     total_value: float,
+    max_single_stock_pct: float,
 ) -> List[Dict[str, Any]]:
     flagged_symbols = {f["symbol"] for f in rule_flags if f.get("symbol")}
     recs = []
@@ -683,7 +584,7 @@ def _rule_based_recommendations(
         recs.append({
             "symbol": sym,
             "action": action,
-            "target_allocation_pct": round(min(weight, 15.0) if action == "TRIM" else weight, 2),
+            "target_allocation_pct": round(min(weight, max_single_stock_pct) if action == "TRIM" else weight, 2),
             "confidence_score": 0.75 if sym in flagged_symbols else 0.60,
             "rationale": rationale,
             "source": "rule_engine",
@@ -699,42 +600,12 @@ def get_recommendations(
 ) -> Dict[str, Any]:
     rule_flags = evaluate_rules(holdings, max_single_stock_pct, max_sector_pct)
     total_value = sum(h.get("quantity", 0) * h.get("last_price", 0) for h in holdings)
-    known_symbols = {h.get("tradingsymbol", "") for h in holdings}
-
-    llm_raw: Optional[str] = None
-    source = "rule_engine"
-    llm_provider = None
-
-    if settings.LLM_PROVIDER == "gemini" and settings.GEMINI_API_KEY:
-        prompt = _build_prompt(holdings, rule_flags, investment_goal, total_value)
-        logger.debug("Gemini Legacy Prompt Payload:\n%s", prompt)
-        llm_raw = _call_gemini(prompt)
-        llm_provider = settings.GEMINI_MODEL
-    elif settings.LLM_PROVIDER == "ollama":
-        prompt = _build_prompt(holdings, rule_flags, investment_goal, total_value)
-        llm_raw = _call_ollama(prompt)
-        llm_provider = f"ollama/{settings.OLLAMA_MODEL}"
-
-    recs: List[Dict[str, Any]] = []
-
-    if llm_raw:
-        try:
-            parsed = RecommendationList.model_validate_json(llm_raw)
-            valid_recs = [r for r in parsed.recommendations if r.symbol in known_symbols]
-            recs = [r.model_dump() | {"source": "llm"} for r in valid_recs]
-            source = "llm"
-        except Exception as e:
-            logger.error("LLM legacy validation failed: %s", e)
-
-    if not recs:
-        recs = _rule_based_recommendations(holdings, rule_flags, total_value)
-        source = "rule_engine"
-        llm_provider = None
+    recs = _rule_based_recommendations(holdings, rule_flags, total_value, max_single_stock_pct)
 
     return {
         "recommendations": recs,
         "rule_flags": rule_flags,
-        "source": source,
+        "source": "rule_engine",
         "investment_goal": investment_goal,
-        "llm_provider": llm_provider,
+        "llm_provider": None,
     }

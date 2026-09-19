@@ -28,8 +28,8 @@ def search_company_news(symbol: str, count: int = 3) -> List[Dict[str, str]]:
         logger.debug("News search for %s served from cache", symbol)
         return cached
 
-    query = f"{symbol} stock news earnings quarterly results NSE India"
-    results = _fetch_ddg_news(query, count=count)
+    query = f"{symbol} NSE stock news"
+    results = _fetch_google_news_rss(query, count=count)
 
     if not results:
         results = [
@@ -54,8 +54,8 @@ def search_sector_news(sector: str, count: int = 3) -> List[Dict[str, str]]:
     if cached is not None:
         return cached
 
-    query = f"Indian equity {sector} sector outlook macroeconomic trends government policy"
-    results = _fetch_ddg_news(query, count=count)
+    query = f"Indian equity {sector} sector news"
+    results = _fetch_google_news_rss(query, count=count)
 
     if not results:
         results = [
@@ -70,33 +70,41 @@ def search_sector_news(sector: str, count: int = 3) -> List[Dict[str, str]]:
     return results
 
 
-def _fetch_ddg_news(query: str, count: int = 3) -> List[Dict[str, str]]:
-    """Helper to query DuckDuckGo instant answer / news API with fallback."""
+import xml.etree.ElementTree as ET
+import email.utils
+
+def _fetch_google_news_rss(query: str, count: int = 3) -> List[Dict[str, str]]:
+    """Helper to query Google News RSS API."""
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
     }
     try:
-        url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"
+        url = f"https://news.google.com/rss/search?q={urllib.parse.quote(query)}&hl=en-IN&gl=IN&ceid=IN:en"
         resp = requests.get(url, headers=headers, timeout=4)
         if resp.status_code == 200:
-            from bs4 import BeautifulSoup
-
-            soup = BeautifulSoup(resp.text, "html.parser")
+            root = ET.fromstring(resp.text)
             articles = []
-            for result in soup.select(".result__body")[:count]:
-                title_elem = result.select_one(".result__title")
-                snippet_elem = result.select_one(".result__snippet")
-                if title_elem and snippet_elem:
-                    articles.append(
-                        {
-                            "title": title_elem.get_text(strip=True),
-                            "snippet": snippet_elem.get_text(strip=True),
-                            "source": "DuckDuckGo Search",
-                        }
-                    )
+            for item in root.findall(".//item")[:count]:
+                title = item.findtext("title")
+                source = item.findtext("source")
+                pubDate = item.findtext("pubDate")
+                
+                if pubDate:
+                    try:
+                        dt = email.utils.parsedate_to_datetime(pubDate)
+                        pubDate = dt.strftime("%d %b %Y")
+                    except Exception:
+                        pass
+
+                if title:
+                    articles.append({
+                        "title": title,
+                        "snippet": title,
+                        "source": f"{source} - {pubDate}" if pubDate and source else source or "Google News",
+                    })
             if articles:
                 return articles
     except Exception as e:
-        logger.warning("DuckDuckGo search fetch failed for query '%s': %s", query, e)
+        logger.warning("Google News RSS fetch failed for query '%s': %s", query, e)
 
     return []

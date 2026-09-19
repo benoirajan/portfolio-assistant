@@ -7,6 +7,8 @@ from src.services.market_data import market_data_service
 from src.core.config import settings
 from src.core import cache
 
+from src.services.portfolio_repository import save_portfolio, load_portfolio
+
 logger = logging.getLogger("portfolio_assistant.api.holdings")
 router = APIRouter(prefix="/api/v1", tags=["Portfolio"])
 
@@ -31,6 +33,16 @@ def get_holdings(x_enctoken: Optional[str] = Header(None, alias="X-Enctoken")):
             return cached
 
         raw_holdings, is_live, error_msg = zerodha_service.get_holdings_with_status()
+        
+        # If fetch failed (e.g. offline/no token), attempt to re-hydrate from disk
+        if not is_live:
+            persisted = load_portfolio(effective_token or "demo")
+            if persisted:
+                logger.info("Holdings re-hydrated from local disk storage")
+                # Ensure we also cache it for next requests
+                cache.set(cache_key, persisted, ttl=settings.HOLDINGS_CACHE_TTL)
+                return persisted
+
         enriched_holdings = market_data_service.enrich_holdings_with_fundamentals(raw_holdings)
 
         total_investment = sum(h.get("quantity", 0) * h.get("average_price", 0) for h in enriched_holdings)
@@ -56,6 +68,11 @@ def get_holdings(x_enctoken: Optional[str] = Header(None, alias="X-Enctoken")):
             },
             "holdings": enriched_holdings
         }
+        
+        # Persist to disk for long-term storage
+        if is_live and enriched_holdings:
+            save_portfolio(effective_token or "demo", response)
+
         cache.set(cache_key, response, ttl=settings.HOLDINGS_CACHE_TTL)
         return response
     except Exception as e:

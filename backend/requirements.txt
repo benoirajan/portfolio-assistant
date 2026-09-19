@@ -2,7 +2,6 @@ fastapi>=0.100.0
 uvicorn>=0.22.0
 kiteconnect>=4.2.0
 pandas>=2.0.0
-streamlit>=1.30.0
 python-dotenv>=1.0.0
 pydantic>=2.0.0
 httpx>=0.24.0

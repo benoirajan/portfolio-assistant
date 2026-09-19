@@ -25,8 +25,6 @@ backend/
 │   │   ├── tax_harvesting.py
 │   │   ├── rebalancer.py
 │   │   └── llm_advisor.py
-│   ├── ui/
-│   │   └── app.py          # Streamlit dashboard (pre-React)
 │   └── main.py             # FastAPI entrypoint
 ├── .env.example
 ├── requirements.txt
@@ -103,8 +101,3 @@ python -m uvicorn src.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 - Swagger UI: http://127.0.0.1:8000/docs
 
-### Streamlit dashboard (pre-React)
-```bash
-streamlit run src/ui/app.py
-```
-- Dashboard: http://localhost:8501

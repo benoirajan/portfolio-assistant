@@ -83,7 +83,7 @@ return {recommendations, rule_flags, source, investment_goal, llm_provider}
 | `confidence_score` | `float` | Must be in `[0.0, 1.0]`, rounded to 2dp |
 | `rationale` | `str` | Free text, 1-2 sentences |
 
-**`RecommendationList`** — full LLM response wrapper:
+**`Stage3Execution`** — full LLM response wrapper:
 
 | Validation | Rule |
 |---|---|
@@ -108,7 +108,7 @@ Rule engine flag details are appended as a plain-text summary list at the end of
 |---|---|
 | Client init | `genai.Client()` — SDK auto-resolves key from `os.environ` |
 | Model | `gemini-3.6-flash` |
-| Output mode | `response_mime_type="application/json"` + `response_schema=RecommendationList` |
+| Output mode | `response_mime_type="application/json"` + `response_schema=Stage3Execution` |
 | Temperature | `0.2` — low for deterministic financial output |
 | Max tokens | `2048` |
 | Retry | 3 attempts, **429 only** — full spec in [LLD 05 §5.1](./05_retry_and_fallback.md#51-gemini--429-only-retry) |
@@ -382,9 +382,9 @@ The official doc shows the SDK auto-resolves `GEMINI_API_KEY` from the environme
 | | Approach |
 |---|---|
 | Before | Manually stripped markdown fences from response text, then called `json.loads()` |
-| After | `types.GenerateContentConfig(response_mime_type="application/json", response_schema=RecommendationList)` — Gemini returns clean structured JSON natively, `model_validate_json(llm_raw)` called directly |
+| After | `types.GenerateContentConfig(response_mime_type="application/json", response_schema=Stage3Execution)` — Gemini returns clean structured JSON natively, `model_validate_json(llm_raw)` called directly |
 
-Using `response_schema` eliminates the fragile string manipulation entirely and guarantees the response conforms to the `RecommendationList` shape before it even reaches the application. See [Structured JSON Output example](../api-references/Gemini_api_doc.md#6-structured-json-output-pydantic).
+Using `response_schema` eliminates the fragile string manipulation entirely and guarantees the response conforms to the `Stage3Execution` shape before it even reaches the application. See [Structured JSON Output example](../api-references/Gemini_api_doc.md#6-structured-json-output-pydantic).
 
 ---
 

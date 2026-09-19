@@ -1,47 +1,51 @@
 # Action Items & TODO Tasks
-
----
-
 ## 📋 Upcoming TODO Tasks
 
-### 1. 🔍 Flow Analysis of 3-Stage Prompt Application Execution
-* **Objective:** Map out and document the full end-to-end flow of how the application runs the 3-stage prompt pipeline.
+### 1. 🗄️ Container-Ready Free Database Persistence (Priority: P0 - Infrastructure & State)
+* **Architectural Rationale:** Foundational database layer. Containerized environments (Docker, Railway, Render, Fly.io) are ephemeral; storing portfolio data in local JSON files causes state loss across container restarts and redeployments. A free database (PostgreSQL container in `docker-compose.yml` for self-hosting / local development, or Neon / Supabase free tier for cloud) with SQLAlchemy 2.0 and Alembic migrations provides durable, production-ready persistence.
+* **Objective:** Replace file-based local storage with a free, container-friendly relational database (PostgreSQL).
 * **Details:**
-  * Trace the flow from UI entrypoint (`backend/src/ui/app.py`) & FastAPI endpoints (`backend/src/api/advisory.py`).
-  * Detail execution steps through `get_multi_stage_advisory()` in `backend/src/services/llm_advisor.py`:
-    1. Rule Engine evaluation (`rebalancer.py`) & market context enrichment (`news_search.py`).
-    2. Stage 1: Portfolio & Market Diagnosis prompt execution & Pydantic schema validation.
-    3. Stage 2: Opportunity selection, conviction screening & ticker master validation (`market_data.py`).
-    4. Stage 3: Bounded budget execution decision & whole-share calculation.
-  * Document data transformations and fallback paths between stages.
+  * Add a `postgres:16-alpine` service with persistent volume to `backend/docker-compose.yml`.
+  * Configure SQLAlchemy 2.0 engine, declarative base, and Alembic migration scripts in `backend/`.
+  * Define core tables: `users`, `user_holdings`, `portfolios`, and `sessions`.
+  * Refactor `backend/src/services/portfolio_repository.py` to persist and re-hydrate holdings through database queries rather than JSON files.
 
 ---
 
-### 2. 💾 User Portfolio Data & Symbol Persistence
-* **Objective:** Set up persistence for user holdings, symbols, and portfolio details so previously fetched data remains available across session restarts.
+### 2. 🔐 Multi-Tenant Authentication & Session Management (Priority: P0 - Security & Identity)
+* **Architectural Rationale:** Security prerequisite for public hosting. Before hosting the application publicly, multi-user isolation is mandatory so that users access only their own portfolios and broker credentials. Sensitive tokens (Zerodha enctoken, API keys) must be encrypted at rest.
+* **Objective:** Implement full authentication and user identity across backend and frontend.
 * **Details:**
-  * Implement local disk/database storage (e.g. SQLite, JSON store, or Redis cache persistence) for holdings fetched from Zerodha or manual input.
-  * Store symbol metadata, cost bases, quantity, and enriched fundamental metrics.
-  * Add automatic re-hydration on startup so users don't have to re-fetch or re-enter portfolio data every time.
+  * Implement FastAPI auth routes (`/api/v1/auth/register`, `/api/v1/auth/login`, `/api/v1/auth/me`) using OAuth2 password bearer and JWT tokens.
+  * Secure password hashing with `bcrypt` (`passlib`) and encrypt broker session credentials using Fernet AES-256.
+  * Build Next.js authentication context (`AuthContext.tsx`), route protection middleware, and login/registration modal or pages.
+  * Attach `Authorization: Bearer <token>` automatically to all frontend Axios API calls.
 
 ---
 
-### 3. 🧹 Remove Legacy Single-Pass Prompt & Replace with Rule-Based Analysis
-* **Objective:** Remove legacy single-pass prompt execution and replace single-pass recommendation calls with pure deterministic rule-based analysis.
+### 3. 💳 SaaS Monetization, Tier Gating & Payment Strategy (Priority: P1 - Monetization)
+* **Architectural Rationale:** Commercial sustainability and API cost control. Advanced features (unlimited Gemini AI multi-stage advisory, automated tax-loss harvesting, 1-click execution) incur compute and LLM token costs. Gating these behind a freemium model with payment processing ensures viable unit economics.
+* **Objective:** Set up tiered monetization, subscription management, payment processing, and usage quotas.
 * **Details:**
-  * Deprecate and remove `_build_prompt()`, `_call_gemini()`, and `_call_ollama()` from `backend/src/services/llm_advisor.py`.
-  * Update `get_recommendations()` to directly use `_rule_based_recommendations()` powered by `evaluate_rules()`.
-  * Ensure multi-stage advisory remains active for LLM-driven deep analysis, while quick single-pass recommendations rely purely on rule-based logic.
-  * Clean up references across `backend/src/api/advisory.py` and `backend/src/ui/app.py`.
+  * Define subscription tiers: **Free** (rule-based advisory, 1 broker, 3 AI runs/mo), **Pro** (₹299/mo: 50 AI reviews, tax harvesting, multi-broker), and **Elite** (₹799/mo: unlimited AI, priority alerts).
+  * Integrate Razorpay Subscriptions / UPI Autopay API and webhook handlers for recurring billing and automatic tier upgrades.
+  * Implement FastAPI entitlement middleware (`@require_tier`) to protect premium endpoints.
+  * Implement a Redis-backed sliding-window quota rate limiter to cap Gemini LLM consumption per user tier.
 
 ---
 
-## ✅ Completed Tasks
+### 4. 📰 Fix Redundancy in News Fetch (Priority: P2 - AI Context Quality)
+* **Architectural Rationale:** The Google News RSS fetcher currently duplicates the headline text for each snippet (due to mapping both `title` and `snippet` to the article title), making the LLM prompt unnecessarily repetitive.
+* **Objective:** Clean up the news text injection in the AI Advisory prompt.
+* **Details:**
+  * Refactor the format string in `backend/src/services/llm_advisor.py` where `news_text` is constructed.
+  * Remove the duplicate `snippet` injection so the prompt lists only `[Source - Date] Headline`.
 
-### Task 1: Comprehensive DEBUG Level Prompt Payload Logging (Completed)
-* **Objective:** Ensure all multi-stage LLM prompt payloads are logged at `DEBUG` level in `backend/src/services/llm_advisor.py`.
-* **Verification:** Logged rendered prompt strings before invoking Gemini for Stage 1, Stage 2, Stage 3, and legacy mode. Verified via unit tests in `backend/tests/test_llm_advisor.py`.
+---
 
-### Task 2: Audit `google-genai` SDK Structured Output & Function Calling Syntax (Completed)
-* **Objective:** Audit `google-genai` Python SDK integration (`from google import genai`, `from google.genai import types`) in `llm_advisor.py`.
-* **Verification:** Upgraded `genai.Client(api_key=...)` initialization, verified structured output schemas, added tool declaration support, and verified response extraction fallback.
+### 5. 🎨 Update UI Theme System (Priority: P2 - UI/UX)
+* **Architectural Rationale:** The frontend theme toggle (the "N" button) should support standard modern web paradigms (Light, Dark, and System preference) for better accessibility and user experience.
+* **Objective:** Ensure the Next.js theme provider supports three-way toggling.
+* **Details:**
+  * Configure `next-themes` (or the equivalent context provider) to recognize and handle `system` preference alongside `light` and `dark`.
+  * Update the "N" toggle button component to correctly cycle through these three states or present a dropdown menu.

@@ -24,6 +24,8 @@ STOCK_METADATA_DB = {
     "BHARTIARTL": {"sector": "Telecommunication",              "cap_category": "Large Cap", "pe_ratio": 42.0, "pb_ratio": 7.2,  "roe": 14.5, "sma_200": 1350.0, "div_yield": 0.50, "roce": 13.9, "fcf_yield": 4.1, "debt_to_equity": 1.45, "peg_ratio": 1.7, "forward_pe": 32.0, "promoter_holding_pct": 53.1, "promoter_pledge_pct": 0.0},
     "ITC":        {"sector": "Consumer Goods (FMCG)",          "cap_category": "Large Cap", "pe_ratio": 27.4, "pb_ratio": 7.8,  "roe": 29.2, "sma_200": 440.0,  "div_yield": 3.20, "roce": 37.8, "fcf_yield": 3.9, "debt_to_equity": 0.01, "peg_ratio": 2.2, "forward_pe": 24.5, "promoter_holding_pct": 0.0,  "promoter_pledge_pct": 0.0},
     "LT":         {"sector": "Capital Goods & Infrastructure", "cap_category": "Large Cap", "pe_ratio": 31.0, "pb_ratio": 4.8,  "roe": 15.6, "sma_200": 3550.0, "div_yield": 0.85, "roce": 17.2, "fcf_yield": 2.3, "debt_to_equity": 1.25, "peg_ratio": 1.8, "forward_pe": 26.0, "promoter_holding_pct": 0.0,  "promoter_pledge_pct": 0.0},
+    "BEL":        {"sector": "Capital Goods & Infrastructure", "cap_category": "Large Cap", "pe_ratio": 48.0, "pb_ratio": 12.0, "roe": 26.5, "sma_200": 260.0,  "div_yield": 0.80, "roce": 35.5, "fcf_yield": 1.2, "debt_to_equity": 0.0,  "peg_ratio": 2.5, "forward_pe": 40.0, "promoter_holding_pct": 51.1, "promoter_pledge_pct": 0.0},
+    "ONGC":       {"sector": "Energy & Petrochemicals",        "cap_category": "Large Cap", "pe_ratio": 7.5,  "pb_ratio": 1.2,  "roe": 15.5, "sma_200": 275.0,  "div_yield": 4.50, "roce": 16.2, "fcf_yield": 8.5, "debt_to_equity": 0.4,  "peg_ratio": 0.8, "forward_pe": 6.5,  "promoter_holding_pct": 58.9, "promoter_pledge_pct": 0.0},
 }
 
 SECTOR_MAP = {
@@ -137,7 +139,12 @@ class MarketDataService:
             data = self._fetch_yfinance(clean)
 
             # 4. Static metadata DB fallback
-            if not data and clean in STOCK_METADATA_DB:
+            if data and clean in STOCK_METADATA_DB:
+                fallback = STOCK_METADATA_DB[clean]
+                for k in fallback:
+                    if data.get(k) in (0.0, 0, None):
+                        data[k] = fallback[k]
+            elif not data and clean in STOCK_METADATA_DB:
                 data = {**STOCK_METADATA_DB[clean], "symbol": clean}
 
         # 5. Generic defaults

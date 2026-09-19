@@ -33,3 +33,4 @@ logs/
 Thumbs.db
 
 [p,P]rompt*.md
+!docs/reports/prompt_comparison.md

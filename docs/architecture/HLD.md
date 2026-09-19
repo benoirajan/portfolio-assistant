@@ -115,7 +115,7 @@ graph TD
   - Identifies rebalancing opportunities based on target model portfolio allocations.
 - **LLM Context Synthesis (Gemini Integration)**:
   - Applies data minimization before constructing the prompt: only relative weights (%), financial ratios (P/E, ROE), and risk category are sent. Absolute monetary values (entry price, invested amount) are never included in the LLM payload.
-  - Structured JSON prompt template sent to `gemini-2.0-flash`. Output is parsed into a Pydantic `RecommendationList` schema.
+  - Structured JSON prompt template sent to `gemini-2.0-flash`. Output is parsed into a Pydantic `Stage3Execution` schema.
   - **Alternative**: For stricter data privacy, a self-hosted model (Ollama + Mistral) can replace Gemini with no data leaving the local environment.
 - **Guardrails**: LLM output is validated via Pydantic before use:
   - `action` must be one of `BUY | SELL | HOLD | TRIM`.
@@ -190,7 +190,7 @@ sequenceDiagram
     LLM-->>Backend: Return Recommendations (JSON)
     Backend->>Guard: Validate schema, symbols, allocation caps
     alt Validation passes
-        Guard-->>Backend: Approved RecommendationList
+        Guard-->>Backend: Approved Stage3Execution
         Backend-->>UI: Render Buy/Sell Signals & Advisory Report
     else Validation fails
         Guard-->>Backend: Rejected — log & discard
