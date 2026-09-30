@@ -6,6 +6,9 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from src.core.logging_config import setup_logging
 from src.core.config import settings
+from src.core import cache
+from src.db.session import check_db_connection, engine
+from src.models import Base
 from src.api.auth import router as auth_router
 from src.api.holdings import router as holdings_router
 from src.api.analytics import router as analytics_router
@@ -60,8 +63,21 @@ app.include_router(advisory_router)
 
 @app.get("/health")
 def health():
-    logger.debug("Health check called")
-    return {"status": "ok"}
+    db_ok, db_msg = check_db_connection()
+    redis_client = cache._get_client()
+    cache_ok = False
+    if redis_client:
+        try:
+            cache_ok = bool(redis_client.ping())
+        except Exception:
+            cache_ok = False
+
+    return {
+        "status": "ok" if db_ok else "degraded",
+        "database": "connected" if db_ok else f"unavailable ({db_msg})",
+        "cache": "connected" if cache_ok else "unavailable (in-memory fallback)",
+        "demo_mode": settings.DEMO_MODE
+    }
 
 
 @app.get("/")
@@ -80,6 +96,12 @@ async def on_startup():
         "Portfolio Assistant API starting — demo_mode=%s host=%s port=%s",
         settings.DEMO_MODE, settings.APP_HOST, settings.APP_PORT
     )
+    # Ensure tables are created if running on SQLite or if auto-creation is needed
+    try:
+        Base.metadata.create_all(bind=engine)
+        logger.info("Database schema initialized")
+    except Exception as e:
+        logger.warning("Database schema auto-creation skipped: %s", e)
 
 
 @app.on_event("shutdown")
