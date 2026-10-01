@@ -1,27 +1,32 @@
 # Action Items & TODO Tasks
 ## 📋 Upcoming TODO Tasks
 
-### 1. 🗄️ Container-Ready Free Database Persistence (Priority: P0 - Infrastructure & State)
-* **Architectural Rationale:** Foundational database layer. Containerized environments (Docker, Railway, Render, Fly.io) are ephemeral; storing portfolio data in local JSON files causes state loss across container restarts and redeployments. A free database (PostgreSQL container in `docker-compose.yml` for self-hosting / local development, or Neon / Supabase free tier for cloud) with SQLAlchemy 2.0 and Alembic migrations provides durable, production-ready persistence.
-* **Objective:** Replace file-based local storage with a free, container-friendly relational database (PostgreSQL).
-* **Details:**
-  * Add a `postgres:16-alpine` service with persistent volume to `backend/docker-compose.yml`.
-  * Configure SQLAlchemy 2.0 engine, declarative base, and Alembic migration scripts in `backend/`.
-  * Define core tables: `users`, `user_holdings`, `portfolios`, and `sessions`.
-  * Refactor `backend/src/services/portfolio_repository.py` to persist and re-hydrate holdings through database queries rather than JSON files.
+### 1. 🗄️ Container-Ready Free Database Persistence (Priority: P0 - Infrastructure & State) — [COMPLETED ✅]
+* **Architectural Rationale:** Foundational database layer. Containerized environments (Docker, Railway, Render, Fly.io) are ephemeral; storing portfolio data in local JSON files causes state loss across container restarts and redeployments. A free database (Managed Supabase PostgreSQL with SQLAlchemy 2.0 and Alembic migrations) provides durable, production-ready persistence.
+* **Objective:** Replace file-based local storage with a managed cloud relational database (PostgreSQL / Supabase).
+* **Implementation Status:**
+  * ✅ SQLAlchemy 2.0 declarative base (`src/db/base.py`) & resilient session pool (`src/db/session.py`) with Supabase pooler compatibility.
+  * ✅ Core ORM models defined in `src/models/` (`User`, `Portfolio`, `UserHolding`, `UserSession`).
+  * ✅ Alembic version-controlled migrations initialized (`alembic/versions/0001_initial_schema.py`).
+  * ✅ Refactored `src/services/portfolio_repository.py` to persist and re-hydrate holdings through database queries with self-healing file fallback.
+  * ✅ Automated pre-boot testing script `backend/run_dev.sh` and 10 comprehensive tests in `backend/tests/test_portfolio.py`.
+  * 📖 Documented in [LLD 09](../lld/09_database_persistence.md).
 
 ---
 
-### 2. 🔐 Multi-Tenant Authentication & Session Management (Priority: P0 - Security & Identity)
+### 2. 🔐 Multi-Tenant Authentication & Session Management (Priority: P0 - Security & Identity) — [COMPLETED ✅]
 * **Architectural Rationale:** Security prerequisite for public hosting. Before hosting the application publicly, multi-user isolation is mandatory so that users access only their own portfolios and broker credentials. Sensitive tokens (Zerodha enctoken, API keys) must be encrypted at rest.
-* **Objective:** Implement full authentication and user identity across backend and frontend.
-* **Details:**
-  * Implement FastAPI auth routes (`/api/v1/auth/register`, `/api/v1/auth/login`, `/api/v1/auth/me`) using OAuth2 password bearer and JWT tokens.
-  * Secure password hashing with `bcrypt` (`passlib`) and encrypt broker session credentials using Fernet AES-256.
-  * Build Next.js authentication context (`AuthContext.tsx`), route protection middleware, and login/registration modal or pages.
-  * Attach `Authorization: Bearer <token>` automatically to all frontend Axios API calls.
+* **Objective:** Implement full authentication and user identity across backend and frontend with Google IAM / OAuth 2.0 and JWT.
+* **Implementation Status:**
+  * ✅ Security engine (`src/core/security.py`) supporting PBKDF2-HMAC-SHA256 password hashing, Fernet AES-256 broker token encryption, HS256 JWT generation, and Google IAM ID token verification via `google-auth`.
+  * ✅ FastAPI auth routes in `src/api/auth.py` (`/api/v1/auth/google`, `/api/v1/auth/register`, `/api/v1/auth/login`, `/api/v1/auth/me`, `/api/v1/auth/broker/enctoken`, `/api/v1/auth/broker/status`, `/api/v1/auth/broker/disconnect`).
+  * ✅ Strict multi-tenant isolation across `/api/v1/holdings`, `/api/v1/advisory/*`, `/api/v1/analytics/*`, scoping database queries, holdings, and cache keys by `user_id`. (Legacy Demo Mode deprecated).
+  * ✅ Next.js AuthContext (`frontend/lib/auth-context.tsx`), Axios Bearer token interceptor (`frontend/lib/api.ts`), interactive Google + Email modal (`AuthModal.tsx`), and dynamic user profile/tier header (`Header.tsx`).
+  * ✅ Full test coverage with 28 passing unit & integration tests (`tests/test_auth.py`, `tests/test_security.py`, `tests/test_portfolio.py`) and clean Next.js production build.
+  * 📖 Documented in [LLD 10](../lld/10_multi_tenant_auth.md).
 
 ---
+
 
 ### 3. 💳 SaaS Monetization, Tier Gating & Payment Strategy (Priority: P1 - Monetization)
 * **Architectural Rationale:** Commercial sustainability and API cost control. Advanced features (unlimited Gemini AI multi-stage advisory, automated tax-loss harvesting, 1-click execution) incur compute and LLM token costs. Gating these behind a freemium model with payment processing ensures viable unit economics.
