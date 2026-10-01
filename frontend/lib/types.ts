@@ -292,3 +292,52 @@ export interface MultiStagePipelineResponse {
 
 export type ConnectionMode = 'demo' | 'enctoken' | 'kite'
 
+// ── Billing & Monetization ──────────────────────────────────────────────────
+
+export interface BillingPlan {
+  tier: 'FREE' | 'PRO' | 'ELITE'
+  price_inr: number
+  price_paise: number
+  ai_runs_per_month: number
+  features: string[]
+  highlight: boolean
+}
+
+export interface BillingPlansResponse {
+  status: string
+  mock_mode: boolean
+  plans: BillingPlan[]
+}
+
+export interface BillingOrderResponse {
+  status: string
+  razorpay_order_id: string
+  amount: number      // in paise
+  currency: string    // 'INR'
+  key_id: string      // Razorpay public key ID
+  mock_mode: boolean
+  target_tier: string
+}
+
+export interface VerifyPaymentPayload {
+  razorpay_order_id: string
+  razorpay_payment_id: string
+  razorpay_signature: string
+  target_tier: string
+}
+
+export interface BillingStatusResponse {
+  tier: string
+  status: string
+  current_period_end: string | null
+  razorpay_order_id: string | null
+  razorpay_payment_id: string | null
+}
+
+export interface AiQuotaResponse {
+  status: string
+  tier: string
+  used: number
+  limit: number
+  remaining: number
+}

@@ -143,3 +143,28 @@ export const exportZerodhaBasket = (
 
 export const invalidatePortfolioCache = (): Promise<{ status: string; keys_deleted: number }> =>
   apiClient.delete('/api/v1/cache/invalidate').then((r) => r.data)
+
+// ── Billing & Monetization Endpoints ─────────────────────────────────────────
+
+import type {
+  BillingPlansResponse,
+  BillingOrderResponse,
+  VerifyPaymentPayload,
+  BillingStatusResponse,
+  AiQuotaResponse,
+} from './types'
+
+export const fetchBillingPlans = (): Promise<BillingPlansResponse> =>
+  apiClient.get('/api/v1/billing/plans').then((r) => r.data)
+
+export const createBillingOrder = (target_tier: string): Promise<BillingOrderResponse> =>
+  apiClient.post('/api/v1/billing/create-order', { target_tier }).then((r) => r.data)
+
+export const verifyBillingPayment = (payload: VerifyPaymentPayload): Promise<{ status: string; message: string; tier: string }> =>
+  apiClient.post('/api/v1/billing/verify-payment', payload).then((r) => r.data)
+
+export const fetchBillingStatus = (): Promise<BillingStatusResponse> =>
+  apiClient.get('/api/v1/billing/status').then((r) => r.data)
+
+export const fetchAiQuota = (): Promise<AiQuotaResponse> =>
+  apiClient.get('/api/v1/billing/quota').then((r) => r.data)

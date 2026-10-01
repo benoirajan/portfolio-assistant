@@ -26,3 +26,6 @@ class User(Base):
     sessions: Mapped[List["UserSession"]] = relationship(
         "UserSession", back_populates="user", cascade="all, delete-orphan"
     )
+    subscriptions: Mapped[List["Subscription"]] = relationship(  # type: ignore[name-defined]
+        "Subscription", back_populates="user", cascade="all, delete-orphan"
+    )

@@ -20,6 +20,7 @@ from src.services.llm_advisor import (
 from src.core.config import settings
 from src.core import cache
 from src.core.security import get_current_user, get_user_enctoken
+from src.core.entitlements import check_and_consume_ai_quota
 from src.models.user import User
 
 logger = logging.getLogger("portfolio_assistant.api.advisory")
@@ -85,9 +86,11 @@ def multi_stage_pipeline(
     max_single_stock_pct: float = Query(15.0, ge=5.0, le=50.0),
     max_sector_pct: float = Query(25.0, ge=10.0, le=60.0),
     x_enctoken: Optional[str] = Header(None),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(check_and_consume_ai_quota)
 ):
-    """Executes full 3-Stage AI Advisory Pipeline with budget and investor inputs for authenticated user."""
+    """Executes full 3-Stage AI Advisory Pipeline with budget and investor inputs for authenticated user.
+    Requires an available monthly AI quota slot (FREE: 3/mo, PRO: 50/mo, ELITE: unlimited).
+    """
     effective_token = x_enctoken or get_user_enctoken(current_user.id) or settings.ZERODHA_ENCTOKEN
     if effective_token:
         zerodha_service.set_enctoken(effective_token)
@@ -117,9 +120,11 @@ async def stream_advisory_pipeline(
     max_single_stock_pct: float = Query(15.0, ge=5.0, le=50.0),
     max_sector_pct: float = Query(25.0, ge=10.0, le=60.0),
     x_enctoken: Optional[str] = Header(None),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(check_and_consume_ai_quota)
 ):
-    """Server-Sent Events (SSE) endpoint streaming real-time progress for the 3-stage wizard."""
+    """Server-Sent Events (SSE) endpoint streaming real-time progress for the 3-stage wizard.
+    Requires an available monthly AI quota slot (FREE: 3/mo, PRO: 50/mo, ELITE: unlimited).
+    """
     effective_token = x_enctoken or get_user_enctoken(current_user.id) or settings.ZERODHA_ENCTOKEN
     if effective_token:
         zerodha_service.set_enctoken(effective_token)

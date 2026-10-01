@@ -7,6 +7,7 @@ from src.services.analytics_engine import analytics_engine
 from src.services.tax_harvesting import tax_harvesting_analyzer
 from src.core.config import settings
 from src.core.security import get_current_user, get_user_enctoken
+from src.core.entitlements import require_tier
 from src.models.user import User
 
 logger = logging.getLogger("portfolio_assistant.api.analytics")
@@ -72,9 +73,13 @@ def get_portfolio_performance_metrics(
 @router.get("/tax-harvesting")
 def get_tax_harvesting_analysis(
     x_enctoken: Optional[str] = Header(None, alias="X-Enctoken"),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_tier("PRO")),
 ):
-    """Returns STCG vs LTCG tax calculations and loss harvesting opportunities for authenticated user."""
+    """Returns STCG vs LTCG tax calculations and loss harvesting opportunities.
+
+    Requires PRO plan or above — advanced tax analysis incurs compute cost.
+    FREE users will receive HTTP 403 with an upgrade prompt.
+    """
     try:
         effective_token = x_enctoken or get_user_enctoken(current_user.id) or settings.ZERODHA_ENCTOKEN
         if not effective_token:

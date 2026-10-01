@@ -50,5 +50,26 @@ class Settings:
     HOLDINGS_CACHE_TTL: int = int(os.getenv("HOLDINGS_CACHE_TTL", "300"))   # 5 min
     ADVISORY_CACHE_TTL: int = int(os.getenv("ADVISORY_CACHE_TTL", "1800"))  # 30 min
 
+    # Phase 7 — SaaS Monetization (Razorpay)
+    # Set RAZORPAY_MOCK_MODE=true to stub payments locally without a Razorpay account.
+    RAZORPAY_MOCK_MODE: bool = os.getenv("RAZORPAY_MOCK_MODE", "true").lower() in ("true", "1", "t")
+    RAZORPAY_KEY_ID: str = os.getenv("RAZORPAY_KEY_ID", "rzp_test_MOCK_KEY")
+    RAZORPAY_KEY_SECRET: str = os.getenv("RAZORPAY_KEY_SECRET", "mock_secret")
+    RAZORPAY_WEBHOOK_SECRET: str = os.getenv("RAZORPAY_WEBHOOK_SECRET", "mock_webhook_secret")
+
+    # AI Usage Quotas per tier (monthly Gemini advisory runs)
+    TIER_AI_QUOTA: dict = {
+        "FREE":  3,      # 3 Gemini AI advisory runs / month
+        "PRO":   50,     # 50 runs / month
+        "ELITE": 9999,   # Effectively unlimited (sentinel value)
+    }
+
+    # Subscription pricing in paise (INR × 100) — used when creating Razorpay orders
+    TIER_PRICE_PAISE: dict = {
+        "PRO":   29900,  # ₹299 / month
+        "ELITE": 79900,  # ₹799 / month
+    }
+
+
 settings = Settings()
 

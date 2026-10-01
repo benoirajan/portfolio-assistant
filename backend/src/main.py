@@ -13,6 +13,7 @@ from src.api.auth import router as auth_router
 from src.api.holdings import router as holdings_router
 from src.api.analytics import router as analytics_router
 from src.api.advisory import router as advisory_router
+from src.api.billing import router as billing_router
 
 setup_logging(level="DEBUG")
 logger = logging.getLogger("portfolio_assistant.main")
@@ -59,6 +60,7 @@ app.include_router(auth_router)
 app.include_router(holdings_router)
 app.include_router(analytics_router)
 app.include_router(advisory_router)
+app.include_router(billing_router)
 
 
 @app.get("/health")

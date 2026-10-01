@@ -28,14 +28,24 @@
 ---
 
 
-### 3. 💳 SaaS Monetization, Tier Gating & Payment Strategy (Priority: P1 - Monetization)
+### 3. 💳 SaaS Monetization, Tier Gating & Payment Strategy (Priority: P1 - Monetization) — [COMPLETED ✅]
 * **Architectural Rationale:** Commercial sustainability and API cost control. Advanced features (unlimited Gemini AI multi-stage advisory, automated tax-loss harvesting, 1-click execution) incur compute and LLM token costs. Gating these behind a freemium model with payment processing ensures viable unit economics.
 * **Objective:** Set up tiered monetization, subscription management, payment processing, and usage quotas.
-* **Details:**
-  * Define subscription tiers: **Free** (rule-based advisory, 1 broker, 3 AI runs/mo), **Pro** (₹299/mo: 50 AI reviews, tax harvesting, multi-broker), and **Elite** (₹799/mo: unlimited AI, priority alerts).
-  * Integrate Razorpay Subscriptions / UPI Autopay API and webhook handlers for recurring billing and automatic tier upgrades.
-  * Implement FastAPI entitlement middleware (`@require_tier`) to protect premium endpoints.
-  * Implement a Redis-backed sliding-window quota rate limiter to cap Gemini LLM consumption per user tier.
+* **Implementation Status:**
+  * ✅ Subscription tiers defined: **Free** (rule-based advisory, 1 broker, 3 AI runs/mo), **Pro** (₹299/mo: 50 AI reviews, tax harvesting), **Elite** (₹799/mo: unlimited AI, priority alerts).
+  * ✅ `Subscription` ORM model (`src/models/subscription.py`) with Razorpay IDs, billing period, webhook idempotency key.
+  * ✅ Alembic migration `0002_add_subscriptions_table.py` — adds `subscriptions` table with FK cascade on `users`.
+  * ✅ Entitlement middleware (`src/core/entitlements.py`) — `require_tier()` factory and `check_and_consume_ai_quota()` dependency.
+  * ✅ Billing API (`src/api/billing.py`) — `/api/v1/billing/plans`, `/create-order`, `/verify-payment`, `/status`, `/quota`, `/webhook`.
+  * ✅ Razorpay **mock mode** (`RAZORPAY_MOCK_MODE=true`) — full flow works without a live account; set to `false` once keys are provisioned.
+  * ✅ `/api/v1/advisory/pipeline` and `/api/v1/advisory/stream` gated with `check_and_consume_ai_quota`.
+  * ✅ `/api/v1/analytics/tax-harvesting` gated with `require_tier("PRO")`.
+  * ✅ Next.js `PricingModal.tsx` — three tier cards, mock/live Razorpay checkout, upgrade flow.
+  * ✅ `Header.tsx` updated with AI quota pill, Upgrade button, and tier-coloured badge.
+  * ✅ `frontend/lib/api.ts` + `types.ts` — billing API client functions and TypeScript interfaces.
+  * ✅ 16 unit tests in `backend/tests/test_billing.py`.
+  * ⚠️ **Multi-broker entitlement** is a placeholder in `TIER_DEFINITIONS` (see Task 7 below).
+  * ⚠️ **Live Razorpay keys** not yet integrated (see Task 6 below).
 
 ---
 
@@ -54,3 +64,26 @@
 * **Details:**
   * Configure `next-themes` (or the equivalent context provider) to recognize and handle `system` preference alongside `light` and `dark`.
   * Update the "N" toggle button component to correctly cycle through these three states or present a dropdown menu.
+
+---
+
+### 6. 💳 Integrate Live Razorpay Keys & Recurring Subscriptions (Priority: P1 - Monetization Follow-up)
+* **Architectural Rationale:** Task 3 implemented billing with `RAZORPAY_MOCK_MODE=true`. To take real payments, live Razorpay credentials must be provisioned and the `PricingModal.tsx` Razorpay checkout widget must be verified end-to-end.
+* **Objective:** Switch from mock mode to live Razorpay payment processing.
+* **Details:**
+  * Create a Razorpay account at [dashboard.razorpay.com](https://dashboard.razorpay.com) and obtain `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET`.
+  * Set `RAZORPAY_MOCK_MODE=false` in the production `.env` / deployment secrets.
+  * Configure the Razorpay webhook URL (pointing to `POST /api/v1/billing/webhook`) in the Razorpay dashboard and set `RAZORPAY_WEBHOOK_SECRET`.
+  * Test the full end-to-end payment flow with a Razorpay test card before going live.
+  * Optionally migrate from one-time orders to Razorpay Subscriptions for UPI Autopay recurring billing.
+
+---
+
+### 7. 🔗 Multi-Broker Entitlement Support (Priority: P2 - Monetization)
+* **Architectural Rationale:** Task 3 defined `PRO` as allowing "multi-broker" connections. Currently only Zerodha is integrated. This task adds the entitlement check as a gating placeholder and implements support for a second broker.
+* **Objective:** Allow PRO/ELITE users to connect more than one broker account.
+* **Details:**
+  * Add a `MAX_BROKER_CONNECTIONS` entitlement check in the broker session management logic (currently `src/api/auth.py` `/broker/enctoken`).
+  * FREE users: 1 broker connection. PRO/ELITE: unlimited.
+  * Implement a second broker adapter (e.g., Angel One or Groww) as a concrete integration alongside the existing `zerodha_client.py`.
+  * The `TIER_DEFINITIONS` list in `src/api/billing.py` already shows "1 broker" for FREE — update once the second broker is implemented.
