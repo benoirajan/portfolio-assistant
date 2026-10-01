@@ -22,7 +22,7 @@ def _get_client():
             import redis
             _redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
             _redis_client.ping()
-            logger.info("Redis connected — %s", settings.REDIS_URL)
+            logger.info("Redis connected — %s", settings.REDIS_URL[-10])
         except Exception as e:
             logger.warning("Redis unavailable — falling back to local disk cache: %s", e)
             _redis_client = False  # sentinel: don't retry on every call

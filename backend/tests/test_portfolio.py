@@ -16,8 +16,6 @@ from src.services.portfolio_repository import (
     save_portfolio,
     load_portfolio,
     _get_token_hash,
-    _get_file_path,
-    _DATA_DIR
 )
 
 
@@ -55,14 +53,8 @@ class TestPortfolioPersistenceComprehensive(unittest.TestCase):
             db.query(UserSession).delete()
             db.query(User).delete()
 
-        # Clean file fallback data directory
-        if os.path.exists(_DATA_DIR):
-            shutil.rmtree(_DATA_DIR)
-        os.makedirs(_DATA_DIR, exist_ok=True)
-
     def tearDown(self):
-        if os.path.exists(_DATA_DIR):
-            shutil.rmtree(_DATA_DIR)
+        pass
 
     # -------------------------------------------------------------------------
     # 1. DATABASE CONNECTIVITY & ORM SCHEMA INTEGRITY
@@ -291,36 +283,6 @@ class TestPortfolioPersistenceComprehensive(unittest.TestCase):
         self.assertIsNotNone(loaded)
         self.assertEqual(len(loaded["holdings"]), 0)
 
-    def test_file_backup_and_db_resynchronization(self):
-        """Verify that when a portfolio exists only in file backup, loading it syncs it to DB."""
-        token = "file_only_token"
-        token_hash = _get_token_hash(token)
-        file_data = {
-            "status": "success",
-            "summary": {"total_investment": 7777.0},
-            "holdings": [{"tradingsymbol": "SBIN", "quantity": 10, "average_price": 777.7, "last_price": 800.0}]
-        }
-
-        # Write only to file directly
-        import json
-        with open(_get_file_path(token), "w") as f:
-            json.dump(file_data, f)
-
-        # Confirm not in DB yet
-        with get_db_session() as db:
-            p = db.query(Portfolio).filter(Portfolio.token_hash == token_hash).first()
-            self.assertIsNone(p)
-
-        # Load portfolio — should load from file AND backfill to DB
-        loaded = load_portfolio(token)
-        self.assertIsNotNone(loaded)
-        self.assertEqual(loaded["holdings"][0]["tradingsymbol"], "SBIN")
-
-        # Confirm now present in DB
-        with get_db_session() as db:
-            p = db.query(Portfolio).filter(Portfolio.token_hash == token_hash).first()
-            self.assertIsNotNone(p)
-            self.assertEqual(p.total_investment, 7777.0)
 
     # -------------------------------------------------------------------------
     # 5. END-TO-END FASTAPI INTEGRATION

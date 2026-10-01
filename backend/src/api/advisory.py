@@ -3,25 +3,33 @@ import hashlib
 import json
 import logging
 import math
-from fastapi import APIRouter, Header, Query, HTTPException
+from fastapi import APIRouter, Header, Query, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from typing import List, Literal, Optional
 from pydantic import BaseModel, Field
 from src.services.zerodha_client import zerodha_service
 from src.services.market_data import market_data_service
-from src.services.llm_advisor import get_recommendations, get_multi_stage_advisory, Recommendation
+from src.services.llm_advisor import (
+    get_recommendations,
+    get_multi_stage_advisory,
+    run_stage1_diagnosis,
+    run_stage2_screening,
+    run_stage3_execution,
+    Recommendation,
+)
 from src.core.config import settings
 from src.core import cache
+from src.core.security import get_current_user, get_user_enctoken
+from src.models.user import User
 
 logger = logging.getLogger("portfolio_assistant.api.advisory")
 router = APIRouter(prefix="/api/v1/advisory", tags=["advisory"])
 
 
-def _advisory_cache_key(token: str, goal: str, stock_pct: float, sector_pct: float, holdings_hash: str) -> str:
-    token_hash = hashlib.sha256(token.encode()).hexdigest()[:16]
+def _advisory_cache_key(user_id: str, goal: str, stock_pct: float, sector_pct: float, holdings_hash: str) -> str:
     params = f"{goal}:{stock_pct}:{sector_pct}:{holdings_hash}"
     params_hash = hashlib.sha256(params.encode()).hexdigest()[:16]
-    return f"advisory:{token_hash}:{params_hash}"
+    return f"advisory:{user_id}:{params_hash}"
 
 
 @router.get("/recommendations")
@@ -30,20 +38,21 @@ def recommendations(
     max_single_stock_pct: float = Query(15.0, ge=5.0, le=50.0),
     max_sector_pct: float = Query(25.0, ge=10.0, le=60.0),
     x_enctoken: Optional[str] = Header(None),
+    current_user: User = Depends(get_current_user)
 ):
-    logger.info("Advisory request — goal='%s' stock_cap=%.0f%% sector_cap=%.0f%%",
-                investment_goal, max_single_stock_pct, max_sector_pct)
-    effective_token = x_enctoken or settings.ZERODHA_ENCTOKEN or ""
-    if x_enctoken:
-        zerodha_service.set_enctoken(x_enctoken)
+    logger.info("Advisory request for user %s — goal='%s' stock_cap=%.0f%% sector_cap=%.0f%%",
+                current_user.id, investment_goal, max_single_stock_pct, max_sector_pct)
+    effective_token = x_enctoken or get_user_enctoken(current_user.id) or settings.ZERODHA_ENCTOKEN or ""
+    if effective_token:
+        zerodha_service.set_enctoken(effective_token)
 
     raw_holdings, _, _ = zerodha_service.get_holdings_with_status()
     enriched = market_data_service.enrich_holdings_with_fundamentals(raw_holdings)
-    logger.debug("Enriched %d holdings for advisory", len(enriched))
+    logger.debug("Enriched %d holdings for advisory (user=%s)", len(enriched), current_user.id)
 
-    # Cache key includes a hash of holdings so stale recommendations auto-invalidate on portfolio change
+    # Cache key includes a hash of holdings scoped by user_id
     holdings_hash = hashlib.sha256(json.dumps(enriched, sort_keys=True, default=str).encode()).hexdigest()[:16]
-    cache_key = _advisory_cache_key(effective_token, investment_goal, max_single_stock_pct, max_sector_pct, holdings_hash)
+    cache_key = _advisory_cache_key(current_user.id, investment_goal, max_single_stock_pct, max_sector_pct, holdings_hash)
 
     cached = cache.get(cache_key)
     if cached:
@@ -56,8 +65,8 @@ def recommendations(
         max_single_stock_pct=max_single_stock_pct,
         max_sector_pct=max_sector_pct,
     )
-    logger.info("Advisory complete — source=%s rule_flags=%d recommendations=%d",
-                result.get("source"), len(result.get("rule_flags", [])), len(result.get("recommendations", [])))
+    logger.info("Advisory complete for user %s — source=%s rule_flags=%d recommendations=%d",
+                current_user.id, result.get("source"), len(result.get("rule_flags", [])), len(result.get("recommendations", [])))
 
     response = {"status": "success", **result}
     # Only cache LLM responses — rule-engine results are cheap to recompute
@@ -76,10 +85,12 @@ def multi_stage_pipeline(
     max_single_stock_pct: float = Query(15.0, ge=5.0, le=50.0),
     max_sector_pct: float = Query(25.0, ge=10.0, le=60.0),
     x_enctoken: Optional[str] = Header(None),
+    current_user: User = Depends(get_current_user)
 ):
-    """Executes full 3-Stage AI Advisory Pipeline with budget and investor inputs."""
-    if x_enctoken:
-        zerodha_service.set_enctoken(x_enctoken)
+    """Executes full 3-Stage AI Advisory Pipeline with budget and investor inputs for authenticated user."""
+    effective_token = x_enctoken or get_user_enctoken(current_user.id) or settings.ZERODHA_ENCTOKEN
+    if effective_token:
+        zerodha_service.set_enctoken(effective_token)
 
     raw_holdings, _, _ = zerodha_service.get_holdings_with_status()
     enriched = market_data_service.enrich_holdings_with_fundamentals(raw_holdings)
@@ -106,48 +117,80 @@ async def stream_advisory_pipeline(
     max_single_stock_pct: float = Query(15.0, ge=5.0, le=50.0),
     max_sector_pct: float = Query(25.0, ge=10.0, le=60.0),
     x_enctoken: Optional[str] = Header(None),
+    current_user: User = Depends(get_current_user)
 ):
     """Server-Sent Events (SSE) endpoint streaming real-time progress for the 3-stage wizard."""
-    if x_enctoken:
-        zerodha_service.set_enctoken(x_enctoken)
+    effective_token = x_enctoken or get_user_enctoken(current_user.id) or settings.ZERODHA_ENCTOKEN
+    if effective_token:
+        zerodha_service.set_enctoken(effective_token)
 
     async def event_generator():
-        yield f"data: {json.dumps({'stage': 1, 'status': 'running', 'message': '🔍 Fetching live market news and auditing portfolio...'})}\n\n"
-        await asyncio.sleep(0.5)
+        loop = asyncio.get_event_loop()
+
+        # --- STAGE 1: Diagnosis (Prompt 1) ---
+        yield f"data: {json.dumps({'stage': 1, 'status': 'running', 'message': '🔍 Stage 1: Auditing portfolio exposure & live market news...' })}\n\n"
 
         raw_holdings, _, _ = zerodha_service.get_holdings_with_status()
         enriched = market_data_service.enrich_holdings_with_fundamentals(raw_holdings)
 
-        # Run multi-stage advisor in executor thread so async SSE stream remains responsive
-        loop = asyncio.get_event_loop()
-
-        yield f"data: {json.dumps({'stage': 1, 'status': 'running', 'message': '📊 Auditing sector exposure & fundamental quality...'})}\n\n"
-
-        result = await loop.run_in_executor(
+        stage1_data, rule_flags, source, llm_provider = await loop.run_in_executor(
             None,
-            lambda: get_multi_stage_advisory(
+            lambda: run_stage1_diagnosis(
                 enriched,
-                total_budget=total_budget,
-                monthly_capacity=monthly_capacity,
-                investment_schedule=investment_schedule,
                 investment_goal=investment_goal,
-                allow_new_stocks=allow_new_stocks,
                 max_single_stock_pct=max_single_stock_pct,
                 max_sector_pct=max_sector_pct,
             )
         )
 
-        yield f"data: {json.dumps({'stage': 1, 'status': 'complete', 'data': result['stage1']})}\n\n"
-        await asyncio.sleep(0.3)
+        yield f"data: {json.dumps({'stage': 1, 'status': 'complete', 'data': stage1_data.model_dump(), 'message': '✅ Stage 1: Portfolio diagnosis complete' })}\n\n"
 
-        yield f"data: {json.dumps({'stage': 2, 'status': 'running', 'message': '🔎 Screening Indian equity universe & scoring portfolio fit...'})}\n\n"
-        await asyncio.sleep(0.3)
-        yield f"data: {json.dumps({'stage': 2, 'status': 'complete', 'data': result['stage2']})}\n\n"
-        await asyncio.sleep(0.3)
+        # --- STAGE 2: Opportunity Screening (Prompt 2) ---
+        yield f"data: {json.dumps({'stage': 2, 'status': 'running', 'message': '🔎 Stage 2: Screening Indian equity universe & ranking conviction...' })}\n\n"
 
-        yield f"data: {json.dumps({'stage': 3, 'status': 'running', 'message': '🧮 Calculating whole-share allocation & cash buffer retention...'})}\n\n"
-        await asyncio.sleep(0.3)
-        yield f"data: {json.dumps({'stage': 3, 'status': 'complete', 'data': result['stage3'], 'full_result': result})}\n\n"
+        stage2_data = await loop.run_in_executor(
+            None,
+            lambda: run_stage2_screening(
+                stage1_data,
+                enriched,
+                investment_goal=investment_goal,
+                allow_new_stocks=allow_new_stocks,
+                source=source,
+            )
+        )
+
+        yield f"data: {json.dumps({'stage': 2, 'status': 'complete', 'data': stage2_data.model_dump(), 'message': '✅ Stage 2: Opportunity selection & conviction matrix complete' })}\n\n"
+
+        # --- STAGE 3: Bounded Execution Decision (Prompt 3) ---
+        yield f"data: {json.dumps({'stage': 3, 'status': 'running', 'message': '🧮 Stage 3: Calculating whole-share allocation, budget limits & cash buffer...' })}\n\n"
+
+        stage3_data = await loop.run_in_executor(
+            None,
+            lambda: run_stage3_execution(
+                stage1_data,
+                stage2_data,
+                enriched,
+                total_budget=total_budget,
+                monthly_capacity=monthly_capacity,
+                investment_schedule=investment_schedule,
+                investment_goal=investment_goal,
+                source=source,
+            )
+        )
+
+        full_result = {
+            "status": "success",
+            "stage1": stage1_data.model_dump(),
+            "stage2": stage2_data.model_dump(),
+            "stage3": stage3_data.model_dump(),
+            "rule_flags": rule_flags,
+            "source": source,
+            "llm_provider": llm_provider,
+            "total_budget": total_budget,
+            "monthly_capacity": monthly_capacity,
+        }
+
+        yield f"data: {json.dumps({'stage': 3, 'status': 'complete', 'data': stage3_data.model_dump(), 'full_result': full_result, 'message': '✅ Stage 3: Execution decision complete!' })}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
@@ -180,10 +223,13 @@ class BasketResponse(BaseModel):
 def create_basket(
     body: BasketRequest,
     x_enctoken: Optional[str] = Header(None),
+    current_user: User = Depends(get_current_user)
 ):
-    logger.info("Basket request — recommendations=%d max_budget=%.2f", len(body.recommendations), body.max_budget)
-    if x_enctoken:
-        zerodha_service.set_enctoken(x_enctoken)
+    logger.info("Basket request for user %s — recommendations=%d max_budget=%.2f",
+                current_user.id, len(body.recommendations), body.max_budget)
+    effective_token = x_enctoken or get_user_enctoken(current_user.id) or settings.ZERODHA_ENCTOKEN
+    if effective_token:
+        zerodha_service.set_enctoken(effective_token)
 
     raw_holdings, _, _ = zerodha_service.get_holdings_with_status()
     price_map = {
@@ -253,8 +299,8 @@ def create_basket(
     total_sell = round(sum(i.estimated_value for i in basket if i.action in ("SELL", "TRIM")), 2)
     utilised_pct = round(total_buy / body.max_budget * 100, 1) if body.max_budget > 0 else 0.0
 
-    logger.info("Basket created — items=%d buy=%.2f sell=%.2f budget_used=%.1f%%",
-                len(basket), total_buy, total_sell, utilised_pct)
+    logger.info("Basket created for user %s — items=%d buy=%.2f sell=%.2f budget_used=%.1f%%",
+                current_user.id, len(basket), total_buy, total_sell, utilised_pct)
     return BasketResponse(
         status="success",
         basket=basket,
@@ -289,9 +335,13 @@ class ExportZerodhaBasketResponse(BaseModel):
 
 
 @router.get("/zerodha-baskets")
-def list_zerodha_baskets(x_enctoken: Optional[str] = Header(None)):
-    if x_enctoken:
-        zerodha_service.set_enctoken(x_enctoken)
+def list_zerodha_baskets(
+    x_enctoken: Optional[str] = Header(None),
+    current_user: User = Depends(get_current_user)
+):
+    effective_token = x_enctoken or get_user_enctoken(current_user.id) or settings.ZERODHA_ENCTOKEN
+    if effective_token:
+        zerodha_service.set_enctoken(effective_token)
     baskets, err = zerodha_service.get_baskets()
     return {"status": "success", "baskets": baskets, "error": err}
 
@@ -300,9 +350,11 @@ def list_zerodha_baskets(x_enctoken: Optional[str] = Header(None)):
 def export_zerodha_basket(
     body: ExportZerodhaBasketRequest,
     x_enctoken: Optional[str] = Header(None),
+    current_user: User = Depends(get_current_user)
 ):
-    if x_enctoken:
-        zerodha_service.set_enctoken(x_enctoken)
+    effective_token = x_enctoken or get_user_enctoken(current_user.id) or settings.ZERODHA_ENCTOKEN
+    if effective_token:
+        zerodha_service.set_enctoken(effective_token)
 
     items_dict = [item.model_dump() for item in body.items]
     res, err = zerodha_service.export_to_zerodha_basket(

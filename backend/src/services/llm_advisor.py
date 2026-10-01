@@ -450,26 +450,16 @@ def _fallback_stage3(stage2: Stage2Ranking, holdings: List[Dict[str, Any]], tota
 # ---------------------------------------------------------------------------
 # Public API — Multi-Stage Advisory Pipeline Entrypoint
 # ---------------------------------------------------------------------------
-def get_multi_stage_advisory(
+def run_stage1_diagnosis(
     holdings: List[Dict[str, Any]],
-    total_budget: float = 5000.0,
-    monthly_capacity: float = 10000.0,
-    investment_schedule: str = "Bi-weekly ₹5,000",
     investment_goal: str = "Moderate Growth",
-    allow_new_stocks: bool = True,
     max_single_stock_pct: float = 15.0,
     max_sector_pct: float = 25.0,
-) -> Dict[str, Any]:
-    """
-    Executes the 3-Stage Prompt Pipeline:
-      Stage 1: Portfolio & Market Diagnosis
-      Stage 2: Investment Opportunity Selection & Conviction Matrix
-      Stage 3: Bounded Execution Decision
-    """
+) -> tuple[Stage1Diagnosis, List[Dict[str, Any]], str, Optional[str]]:
+    """Executes Stage 1: Portfolio & Market Diagnosis (Prompt 1)."""
     rule_flags = evaluate_rules(holdings, max_single_stock_pct, max_sector_pct)
     total_value = sum(h.get("quantity", 0) * h.get("last_price", 0) for h in holdings)
 
-    # 1. Fetch live news context for top holdings & sectors
     top_symbols = [h.get("tradingsymbol", "") for h in holdings[:3] if h.get("tradingsymbol")]
     news_items = []
     for sym in top_symbols:
@@ -478,9 +468,8 @@ def get_multi_stage_advisory(
 
     llm_provider = None
     source = "rule_engine"
-
-    # --- STAGE 1 ---
     stage1_data: Optional[Stage1Diagnosis] = None
+
     if settings.LLM_PROVIDER == "gemini" and settings.GEMINI_API_KEY:
         p1 = _build_stage1_prompt(holdings, rule_flags, investment_goal, total_value, news_text)
         res1 = _call_gemini_schema(p1, Stage1Diagnosis)
@@ -495,7 +484,17 @@ def get_multi_stage_advisory(
     if not stage1_data:
         stage1_data = _fallback_stage1(holdings, rule_flags)
 
-    # --- STAGE 2 ---
+    return stage1_data, rule_flags, source, llm_provider
+
+
+def run_stage2_screening(
+    stage1_data: Stage1Diagnosis,
+    holdings: List[Dict[str, Any]],
+    investment_goal: str = "Moderate Growth",
+    allow_new_stocks: bool = True,
+    source: str = "llm",
+) -> Stage2Ranking:
+    """Executes Stage 2: Investment Opportunity Selection & Conviction Matrix (Prompt 2)."""
     stage2_data: Optional[Stage2Ranking] = None
     if source == "llm" and settings.LLM_PROVIDER == "gemini" and settings.GEMINI_API_KEY:
         p2 = _build_stage2_prompt(stage1_data, holdings, investment_goal, allow_new_stocks)
@@ -503,7 +502,6 @@ def get_multi_stage_advisory(
         if res2:
             try:
                 stage2_data = Stage2Ranking.model_validate_json(res2)
-                # Ticker Master Validation: Filter out unverified new ticker symbols
                 valid_top = []
                 for cand in stage2_data.top_opportunities:
                     if cand.is_existing_holding or market_data_service.is_valid_nse_symbol(cand.symbol):
@@ -517,9 +515,21 @@ def get_multi_stage_advisory(
     if not stage2_data:
         stage2_data = _fallback_stage2(stage1_data, holdings)
 
-    # --- STAGE 3 ---
+    return stage2_data
+
+
+def run_stage3_execution(
+    stage1_data: Stage1Diagnosis,
+    stage2_data: Stage2Ranking,
+    holdings: List[Dict[str, Any]],
+    total_budget: float = 5000.0,
+    monthly_capacity: float = 10000.0,
+    investment_schedule: str = "Bi-weekly ₹5,000",
+    investment_goal: str = "Moderate Growth",
+    source: str = "llm",
+) -> Stage3Execution:
+    """Executes Stage 3: Bounded Execution Decision & Basket Formulation (Prompt 3)."""
     stage3_data: Optional[Stage3Execution] = None
-    
     candidate_prices = {}
     if stage2_data:
         for cand in stage2_data.top_opportunities:
@@ -534,7 +544,6 @@ def get_multi_stage_advisory(
         if res3:
             try:
                 stage3_data = Stage3Execution.model_validate_json(res3)
-                # Cap allocation at total_budget
                 if stage3_data.allocated_amount > total_budget:
                     stage3_data.allocated_amount = total_budget
                     stage3_data.cash_to_keep = 0.0
@@ -543,6 +552,30 @@ def get_multi_stage_advisory(
 
     if not stage3_data:
         stage3_data = _fallback_stage3(stage2_data, holdings, total_budget)
+
+    return stage3_data
+
+
+def get_multi_stage_advisory(
+    holdings: List[Dict[str, Any]],
+    total_budget: float = 5000.0,
+    monthly_capacity: float = 10000.0,
+    investment_schedule: str = "Bi-weekly ₹5,000",
+    investment_goal: str = "Moderate Growth",
+    allow_new_stocks: bool = True,
+    max_single_stock_pct: float = 15.0,
+    max_sector_pct: float = 25.0,
+) -> Dict[str, Any]:
+    """Executes the complete 3-Stage Prompt Pipeline synchronously."""
+    stage1_data, rule_flags, source, llm_provider = run_stage1_diagnosis(
+        holdings, investment_goal, max_single_stock_pct, max_sector_pct
+    )
+    stage2_data = run_stage2_screening(
+        stage1_data, holdings, investment_goal, allow_new_stocks, source
+    )
+    stage3_data = run_stage3_execution(
+        stage1_data, stage2_data, holdings, total_budget, monthly_capacity, investment_schedule, investment_goal, source
+    )
 
     return {
         "status": "success",

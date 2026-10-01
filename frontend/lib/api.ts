@@ -12,17 +12,71 @@ import type {
   ExportZerodhaBasketPayload,
   ExportZerodhaBasketResponse,
   MultiStagePipelineResponse,
+  AuthResponse,
+  MeResponse,
+  BrokerStatusResponse,
 } from './types'
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000'
 
 export const apiClient = axios.create({ baseURL: BASE_URL })
 
+// Injects JWT Bearer token and optional X-Enctoken to all requests
 apiClient.interceptors.request.use((config) => {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('enctoken') : null
-  if (token) config.headers['X-Enctoken'] = token
+  if (typeof window !== 'undefined') {
+    const authToken = localStorage.getItem('auth_token')
+    if (authToken) {
+      config.headers['Authorization'] = `Bearer ${authToken}`
+    }
+    const enctoken = localStorage.getItem('enctoken')
+    if (enctoken) {
+      config.headers['X-Enctoken'] = enctoken
+    }
+  }
   return config
 })
+
+// Handle 401 Unauthorized responses
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401 && typeof window !== 'undefined') {
+      // Clear expired auth token
+      localStorage.removeItem('auth_token')
+      window.dispatchEvent(new Event('auth:unauthorized'))
+    }
+    return Promise.reject(error)
+  }
+)
+
+// ── Authentication Endpoints ──────────────────────────────────────────────────
+
+export const loginWithGoogle = (credential: string): Promise<AuthResponse> =>
+  apiClient.post('/api/v1/auth/google', { credential }).then((r) => r.data)
+
+export const loginWithEmail = (email: string, password: string): Promise<AuthResponse> =>
+  apiClient.post('/api/v1/auth/login', { email, password }).then((r) => r.data)
+
+export const registerUser = (
+  email: string,
+  password: string,
+  full_name?: string
+): Promise<AuthResponse> =>
+  apiClient.post('/api/v1/auth/register', { email, password, full_name }).then((r) => r.data)
+
+export const fetchCurrentUser = (): Promise<MeResponse> =>
+  apiClient.get('/api/v1/auth/me').then((r) => r.data)
+
+export const saveBrokerEnctoken = (enctoken: string): Promise<BrokerStatusResponse> =>
+  apiClient.post('/api/v1/auth/broker/enctoken', { enctoken }).then((r) => r.data)
+
+export const fetchBrokerStatus = (): Promise<BrokerStatusResponse> =>
+  apiClient.get('/api/v1/auth/broker/status').then((r) => r.data)
+
+export const disconnectBroker = (): Promise<{ status: string; message: string }> =>
+  apiClient.delete('/api/v1/auth/broker/disconnect').then((r) => r.data)
+
+// ── Portfolio & Analytics Endpoints ──────────────────────────────────────────
 
 export const fetchHoldings = (): Promise<HoldingsResponse> =>
   apiClient.get('/api/v1/holdings').then((r) => r.data)
@@ -87,3 +141,5 @@ export const exportZerodhaBasket = (
 ): Promise<ExportZerodhaBasketResponse> =>
   apiClient.post('/api/v1/advisory/export-zerodha-basket', payload).then((r) => r.data)
 
+export const invalidatePortfolioCache = (): Promise<{ status: string; keys_deleted: number }> =>
+  apiClient.delete('/api/v1/cache/invalidate').then((r) => r.data)

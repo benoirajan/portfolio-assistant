@@ -158,12 +158,47 @@ export interface ExportZerodhaBasketResponse {
   message: string
 }
 
-// ── Auth ──────────────────────────────────────────────────────────────────────
+// ── Auth & User Identity ──────────────────────────────────────────────────────
+
+export interface User {
+  id: string
+  email: string
+  full_name?: string | null
+  tier: 'FREE' | 'PRO' | 'ELITE' | string
+  is_active: boolean
+  created_at?: string | null
+}
+
+export interface BrokerStatus {
+  has_enctoken: boolean
+  broker?: 'ZERODHA' | string | null
+}
+
+export interface AuthResponse {
+  status: string
+  access_token: string
+  token_type: string
+  user: User
+}
+
+export interface MeResponse {
+  status: string
+  user: User
+  broker_status: BrokerStatus
+}
+
+export interface BrokerStatusResponse {
+  status: string
+  has_enctoken: boolean
+  broker: string | null
+  message?: string
+}
 
 export interface LoginUrlResponse {
   status: string
   login_url: string
 }
+
 
 // ── Multi-Stage Pipeline Advisory ──────────────────────────────────────────────────
 

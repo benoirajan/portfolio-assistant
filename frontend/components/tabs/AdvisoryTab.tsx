@@ -77,7 +77,11 @@ export default function AdvisoryTab({ advisory }: Props) {
       allow_new_stocks: allowNewStocks.toString(),
     })
 
-    const token = typeof window !== 'undefined' ? localStorage.getItem('enctoken') : null
+    const authToken = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null
+    if (authToken) {
+      queryParams.set('token', authToken)
+    }
+
     const url = `${baseUrl}/api/v1/advisory/stream?${queryParams.toString()}`
 
     const es = new EventSource(url)
@@ -88,10 +92,32 @@ export default function AdvisoryTab({ advisory }: Props) {
         if (parsed.stage) setStreamStage(parsed.stage)
         if (parsed.message) setStreamMessage(parsed.message)
 
+        // Store intermediate stage 1 result
+        if (parsed.stage === 1 && parsed.status === 'complete' && parsed.data) {
+          setPipelineResult((prev) => ({
+            status: 'running',
+            stage1: parsed.data,
+            stage2: prev?.stage2,
+            stage3: prev?.stage3,
+          } as any))
+        }
+
+        // Store intermediate stage 2 result
+        if (parsed.stage === 2 && parsed.status === 'complete' && parsed.data) {
+          setPipelineResult((prev) => ({
+            status: 'running',
+            stage1: prev?.stage1,
+            stage2: parsed.data,
+            stage3: prev?.stage3,
+          } as any))
+        }
+
+        // Final completion with all 3 stages
         if (parsed.status === 'complete' && parsed.full_result) {
           setPipelineResult(parsed.full_result)
           setIsStreaming(false)
           setStreamStage(3)
+          setActiveStageTab('stage3')
           setStreamMessage('✅ 3-Stage Advisory Pipeline execution complete!')
           es.close()
         }
@@ -101,7 +127,8 @@ export default function AdvisoryTab({ advisory }: Props) {
     }
 
     es.onerror = (err) => {
-      console.error('SSE Error:', err)
+      console.warn('SSE stream disconnected or unauthorized:', err)
+      setStreamMessage('⚠️ Advisory stream disconnected. Please verify you are signed in.')
       setIsStreaming(false)
       es.close()
     }

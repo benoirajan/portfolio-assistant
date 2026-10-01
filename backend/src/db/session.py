@@ -1,10 +1,11 @@
 import os
 import logging
 from contextlib import contextmanager
-from typing import Generator, Tuple
+from typing import Generator, Tuple, Optional
 from sqlalchemy import create_engine, text, Engine
 from sqlalchemy.orm import sessionmaker, Session
 from src.core.config import settings
+from src.db.base import Base
 
 logger = logging.getLogger("portfolio_assistant.db")
 
@@ -12,7 +13,7 @@ logger = logging.getLogger("portfolio_assistant.db")
 def _normalize_database_url(url: str) -> str:
     """Normalize database URL for SQLAlchemy compatibility with psycopg2."""
     if not url:
-        return "sqlite:///:memory:"
+        return "postgresql+psycopg2://postgres:postgres@localhost:5432/postgres"
     # Replace deprecated postgres:// with postgresql+psycopg2://
     if url.startswith("postgres://"):
         url = url.replace("postgres://", "postgresql+psycopg2://", 1)
@@ -21,12 +22,12 @@ def _normalize_database_url(url: str) -> str:
     return url
 
 
-def create_db_engine(url: str = None) -> Engine:
-    """Creates a configured SQLAlchemy Engine."""
+def create_db_engine(url: Optional[str] = None) -> Engine:
+    """Creates a configured SQLAlchemy Engine for production PostgreSQL."""
     target_url = url or os.getenv("DATABASE_URL") or settings.DATABASE_URL
     is_testing = os.getenv("TESTING", "false").lower() in ("true", "1", "t")
 
-    if is_testing or not target_url:
+    if is_testing and not url and not os.getenv("DATABASE_URL"):
         target_url = "sqlite:///:memory:"
 
     normalized_url = _normalize_database_url(target_url)
@@ -38,29 +39,26 @@ def create_db_engine(url: str = None) -> Engine:
     if normalized_url.startswith("sqlite"):
         engine_kwargs["connect_args"] = {"check_same_thread": False}
     else:
-        # PostgreSQL settings for cloud environments (Supabase / Neon)
+        # Production PostgreSQL connection pool configuration
         engine_kwargs["pool_pre_ping"] = True
         engine_kwargs["pool_recycle"] = 300
         engine_kwargs["pool_size"] = settings.DB_POOL_SIZE
         engine_kwargs["max_overflow"] = settings.DB_MAX_OVERFLOW
 
-    try:
-        eng = create_engine(normalized_url, **engine_kwargs)
-        return eng
-    except Exception as e:
-        logger.error("Failed to create engine for %s: %s. Falling back to SQLite.", normalized_url, e)
-        return create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    eng = create_engine(normalized_url, **engine_kwargs)
+    logger.info("Database engine initialized for: %s", normalized_url.split("@")[-1] if "@" in normalized_url else normalized_url)
+    return eng
 
 
 engine = create_db_engine()
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, expire_on_commit=False, bind=engine)
 
 
 def bind_engine(new_engine: Engine):
-    """Rebinds SessionLocal to a new engine (useful for testing)."""
+    """Rebinds SessionLocal to a new engine (for testing environments)."""
     global engine, SessionLocal
     engine = new_engine
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, expire_on_commit=False, bind=engine)
 
 
 def get_db() -> Generator[Session, None, None]:
@@ -74,7 +72,7 @@ def get_db() -> Generator[Session, None, None]:
 
 @contextmanager
 def get_db_session() -> Generator[Session, None, None]:
-    """Context manager for standalone repository and service operations."""
+    """Context manager for repository and service database operations."""
     db: Session = SessionLocal()
     try:
         yield db

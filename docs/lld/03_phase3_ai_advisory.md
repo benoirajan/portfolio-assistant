@@ -401,4 +401,50 @@ The generated trade basket can be pushed directly into Zerodha Baskets without a
 
 1. **Non-Executing**: Uses Zerodha OMS Basket endpoints (`/orders/baskets`), never order placement endpoints (`/orders/regular`).
 2. **Manual Review**: Returns a direct link to `https://kite.zerodha.com/orders/baskets` where users review items and trigger manual execution when ready.
-3. **Demo Mode**: Gracefully simulates basket creation and returns mock basket IDs when running without live Zerodha sessions.
+
+---
+
+## 12. Multi-Stage 3-Pass AI Advisory Pipeline & Real-Time SSE Streaming
+
+### 12.1 Modular Stage Execution (`src/services/llm_advisor.py`)
+
+The pipeline is split into 3 independent, chained stage runners:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Stage 1: run_stage1_diagnosis()                             │
+│ • Deterministic Rule Engine evaluation (evaluate_rules)     │
+│ • Live financial news search (search_company_news)          │
+│ • Prompt 1 → Stage1Diagnosis (Quality, Weakness, Risks)     │
+└──────────────────────────────┬──────────────────────────────┘
+                               │ (stage1_data)
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│ Stage 2: run_stage2_screening()                             │
+│ • NSE Ticker Master verification                            │
+│ • Prompt 2 → Stage2Ranking (Conviction Matrix, Screener)    │
+└──────────────────────────────┬──────────────────────────────┘
+                               │ (stage2_data)
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│ Stage 3: run_stage3_execution()                             │
+│ • Live candidate price quotes                               │
+│ • Whole-share math, budget limits, cash buffer retention    │
+│ • Prompt 3 → Stage3Execution (Final Allocation Decision)    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 12.2 Real-Time SSE Streaming (`GET /api/v1/advisory/stream`)
+
+Instead of blocking across all 3 stages, `GET /api/v1/advisory/stream` streams Server-Sent Events incrementally in real-time as each stage executes:
+
+1. **Stage 1 Running**: `data: {"stage": 1, "status": "running", "message": "🔍 Stage 1: Auditing portfolio exposure & live market news..."}`
+2. **Stage 1 Complete**: `data: {"stage": 1, "status": "complete", "data": {...}, "message": "✅ Stage 1: Portfolio diagnosis complete"}`
+3. **Stage 2 Running**: `data: {"stage": 2, "status": "running", "message": "🔎 Stage 2: Screening Indian equity universe & ranking conviction..."}`
+4. **Stage 2 Complete**: `data: {"stage": 2, "status": "complete", "data": {...}, "message": "✅ Stage 2: Opportunity selection & conviction matrix complete"}`
+5. **Stage 3 Running**: `data: {"stage": 3, "status": "running", "message": "🧮 Stage 3: Calculating whole-share allocation, budget limits & cash buffer..."}`
+6. **Stage 3 Complete**: `data: {"stage": 3, "status": "complete", "data": {...}, "full_result": {...}, "message": "✅ Stage 3: Execution decision complete!"}`
+
+### 12.3 Frontend Incremental Ingestion (`AdvisoryTab.tsx`)
+- The Next.js frontend listens to the `EventSource` stream and immediately renders intermediate results as each stage finishes.
+- The interactive stepper progress bar dynamically updates (`Stage 1 of 3` ➔ `Stage 2 of 3` ➔ `Stage 3 of 3`).

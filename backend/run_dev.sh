@@ -45,11 +45,15 @@ fi
 
 # Step 2: Run Alembic Database Migrations
 echo -e "\n${YELLOW}[Step 2/3] 🗄️ Checking & Applying Database Migrations...${NC}"
-if $ALEMBIC upgrade head; then
+set +e
+$ALEMBIC upgrade head
+if [ $? -eq 0 ]; then
     echo -e "${GREEN}✓ Database schema is up to date!${NC}"
 else
     echo -e "${YELLOW}⚠ Alembic migration warning (offline/fallback mode active)${NC}"
 fi
+set -e
+
 
 # Step 3: Start FastAPI Application Server
 echo -e "\n${YELLOW}[Step 3/3] 🌐 Launching FastAPI Server with Hot Reload...${NC}"

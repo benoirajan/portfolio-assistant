@@ -17,6 +17,7 @@
 | 7 | [07_phase5_react_frontend.md](./07_phase5_react_frontend.md) | Phase 5 | Next.js app structure, all components, hooks, API client, type definitions |
 | 8 | [08_cache_layer.md](./08_cache_layer.md) | Cross-cutting | Redis cache client, key conventions, TTLs, graceful degradation, token security |
 | 9 | [09_database_persistence.md](./09_database_persistence.md) | Phase 6 & P0 | Managed Supabase PostgreSQL, SQLAlchemy 2.0 ORM, Alembic migrations, test pipeline |
+| 10 | [10_multi_tenant_auth.md](./10_multi_tenant_auth.md) | Phase 6 & P0 | Multi-tenant auth, Google IAM, PBKDF2 passwords, Fernet AES-256 broker encryption, SSE auth |
 
 ---
 
@@ -24,13 +25,16 @@
 
 | Source File | LLD Document(s) |
 |---|---|
-| `src/core/config.py` | [LLD 01 §1](./01_phase1_auth_and_holdings.md#1-srccoreconfpy--settings), [LLD 03 §1](./03_phase3_ai_advisory.md#1-srccoreconfpy--llm-settings), [LLD 09 §2](./09_database_persistence.md#2-database-engine--session-manager-srcdbsessionpy) |
+| `src/core/security.py` | [LLD 10 §2](./10_multi_tenant_auth.md#2-key-architecture-components), [LLD 10 §4](./10_multi_tenant_auth.md#4-dual-transport-authentication-get_current_user) |
+| `src/core/config.py` | [LLD 01 §1](./01_phase1_auth_and_holdings.md#1-srccoreconfpy--settings), [LLD 03 §1](./03_phase3_ai_advisory.md#1-srccoreconfpy--llm-settings), [LLD 09 §2](./09_database_persistence.md#2-database-engine--session-manager-srcdbsessionpy), [LLD 10 §3](./10_multi_tenant_auth.md#3-broker-credential-security--in-memory-resolution) |
 | `src/db/base.py` | [LLD 09 §2](./09_database_persistence.md#2-database-engine--session-manager-srcdbsessionpy) |
-| `src/db/session.py` | [LLD 09 §2](./09_database_persistence.md#2-database-engine--session-manager-srcdbsessionpy) |
-| `src/models/*` | [LLD 09 §3](./09_database_persistence.md#3-sqlalchemy-20-orm-models-srcmodels) |
-| `src/services/portfolio_repository.py` | [LLD 09 §4](./09_database_persistence.md#4-repository-layer--fallback-mechanics-srcservicesportfolio_repositorypy) |
+| `src/db/session.py` | [LLD 09 §2](./09_database_persistence.md#2-database-engine--session-manager-srcdbsessionpy), [LLD 10 §2](./10_multi_tenant_auth.md#2-key-architecture-components) |
+| `src/models/*` | [LLD 09 §3](./09_database_persistence.md#3-sqlalchemy-20-orm-models-srcmodels), [LLD 10 §3](./10_multi_tenant_auth.md#3-broker-credential-security--in-memory-resolution) |
+| `src/services/portfolio_repository.py` | [LLD 09 §4](./09_database_persistence.md#4-repository-layer--fallback-mechanics-srcservicesportfolio_repositorypy), [LLD 10 §3](./10_multi_tenant_auth.md#3-broker-credential-security--in-memory-resolution) |
 | `run_dev.sh` | [LLD 09 §5](./09_database_persistence.md#5-development-runner-pipeline-backendrun_devsh) |
 | `tests/test_portfolio.py` | [LLD 09 §6](./09_database_persistence.md#6-comprehensive-test-suite-teststest_portfoliopy) |
+| `tests/test_security.py` | [LLD 10 §2](./10_multi_tenant_auth.md#2-key-architecture-components) |
+| `tests/test_auth.py` | [LLD 10 §5](./10_multi_tenant_auth.md#5-api-endpoints-reference) |
 | `src/core/logging_config.py` | [LLD 04 §1](./04_logging.md#1-srccorelogs_configpy--central-setup) |
 | `src/core/retry.py` | [LLD 05 §2](./05_retry_and_fallback.md#2-srccoretrypy--shared-retry-utility) |
 | `src/core/cache.py` | [LLD 08 §1](./08_cache_layer.md#1-backendsrccorecachepy--cache-client) |
