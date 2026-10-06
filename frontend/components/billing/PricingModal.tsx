@@ -79,7 +79,7 @@ export default function PricingModal({
         onClose()
       } else {
         // ── Live mode: open Razorpay checkout widget ──
-        // @ts-ignore — Razorpay is loaded via <Script> in the page layout
+        // @ts-expect-error — Razorpay is loaded via <Script> in the page layout
         const rzp = new window.Razorpay({
           key: orderRes.key_id,
           amount: orderRes.amount,

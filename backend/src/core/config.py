@@ -22,7 +22,7 @@ class Settings:
     ZERODHA_ENCTOKEN: str = os.getenv("ZERODHA_ENCTOKEN", os.getenv("ENCTOKEN", os.getenv("KITE_ENCTOKEN", "")))
     DEMO_MODE: bool = os.getenv("DEMO_MODE", "false").lower() in ("true", "1", "t")
     APP_HOST: str = os.getenv("APP_HOST", "127.0.0.1")
-    APP_PORT: int = int(os.getenv("APP_PORT", "8000"))
+    APP_PORT: int = int(os.getenv("PORT", os.getenv("APP_PORT", "8000")))
 
     # Google IAM & OAuth
     GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "")

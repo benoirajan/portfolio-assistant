@@ -1,0 +1,172 @@
+name: Deploy Hybrid Cloud (GCP Cloud Run & Vercel)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+jobs:
+  # ============================================================================
+  # 1. CI Quality Gates (Backend & Frontend)
+  # ============================================================================
+  test-backend:
+    name: 🧪 Test Backend (Python 3.10)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Run Backend Unit Tests
+        env:
+          PYTHONPATH: backend
+          DEMO_MODE: "true"
+          JWT_SECRET_KEY: "ci-test-jwt-secret-key-32-chars-minimum"
+          ENCRYPTION_SECRET_KEY: "vXz7e9K3N4P1Q8R6T2U5W7Y9A1B3C5E7G9I1K3M5O7Q="
+        run: |
+          python -m unittest discover -s backend/tests -p "test_*.py"
+
+  test-frontend:
+    name: 🧪 Test & Build Frontend (Next.js)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run ESLint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Run Next.js Production Build
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_API_URL: "http://127.0.0.1:8000"
+        run: npm run build
+
+  # ============================================================================
+  # 2. Backend Continuous Deployment (GCP Cloud Run - Mumbai asia-south1)
+  # ============================================================================
+  deploy-backend:
+    name: 🚀 Deploy Backend to GCP Cloud Run
+    needs: [test-backend]
+    runs-on: ubuntu-latest
+    outputs:
+      service_url: ${{ steps.deploy-run.outputs.url }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker asia-south1-docker.pkg.dev --quiet
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: |
+            asia-south1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/portfolio-assistant/backend:${{ github.sha }}
+            asia-south1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/portfolio-assistant/backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Deploy to GCP Cloud Run
+        id: deploy-run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: portfolio-assistant-api
+          region: asia-south1
+          image: asia-south1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/portfolio-assistant/backend:${{ github.sha }}
+          flags: |
+            --allow-unauthenticated
+            --min-instances=0
+            --max-instances=10
+            --memory=512Mi
+            --cpu=1
+          env_vars: |
+            DEMO_MODE=false
+            ALLOWED_ORIGINS=${{ secrets.ALLOWED_ORIGINS || '*' }}
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
+            REDIS_URL=${{ secrets.REDIS_URL }}
+            GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+            JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
+            ENCRYPTION_SECRET_KEY=${{ secrets.ENCRYPTION_SECRET_KEY }}
+            GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
+            GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
+
+      - name: Health Check Verification Probe
+        run: |
+          SERVICE_URL="${{ steps.deploy-run.outputs.url }}"
+          echo "Verifying zero-downtime deployment at $SERVICE_URL/health"
+          for i in {1..12}; do
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$SERVICE_URL/health" || true)
+            if [ "$HTTP_STATUS" -eq 200 ]; then
+              echo "✓ Cloud Run Health Check Passed (HTTP 200 OK)"
+              exit 0
+            fi
+            echo "Attempt $i: HTTP status $HTTP_STATUS, retrying in 5 seconds..."
+            sleep 5
+          done
+          echo "✗ Health check failed after 12 attempts (60s)"
+          exit 1
+
+  # ============================================================================
+  # 3. Deployment Summary & Vercel Linkage
+  # ============================================================================
+  deployment-summary:
+    name: 📋 Deployment Summary
+    needs: [deploy-backend, test-frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Output Deployment URLs
+        run: |
+          echo "================================================================"
+          echo "🚀 Portfolio Assistant Deployment Summary"
+          echo "================================================================"
+          echo "FastAPI Cloud Run URL: ${{ needs.deploy-backend.outputs.service_url }}"
+          echo "Health Check:          ${{ needs.deploy-backend.outputs.service_url }}/health"
+          echo "Swagger Docs:          ${{ needs.deploy-backend.outputs.service_url }}/docs"
+          echo ""
+          echo "Next.js Frontend: Deployed automatically via Vercel GitHub App"
+          echo "Ensure NEXT_PUBLIC_API_URL in Vercel points to: ${{ needs.deploy-backend.outputs.service_url }}"
+          echo "================================================================"

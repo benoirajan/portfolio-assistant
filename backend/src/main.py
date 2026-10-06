@@ -1,3 +1,4 @@
+import os
 import time
 import uuid
 import logging
@@ -24,9 +25,13 @@ app = FastAPI(
     version="1.0.0"
 )
 
+cors_origins_raw = os.getenv("ALLOWED_ORIGINS", "*")
+allowed_origins = [o.strip() for o in cors_origins_raw.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins if allowed_origins != ["*"] else ["*"],
+    allow_origin_regex=r"https://.*\.vercel\.app" if allowed_origins == ["*"] else None,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
