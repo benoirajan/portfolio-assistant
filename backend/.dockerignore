@@ -1,0 +1,37 @@
+# Ignore virtual environment and dependencies
+.venv/
+venv/
+env/
+
+# Ignore Python bytecode and build artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+
+# Ignore test caches and test files from production runtime image
+.pytest_cache/
+tests/
+
+# Ignore logs and local temporary caches
+logs/
+*.log
+.cache/
+data/
+
+# Ignore environment files
+.env*
+!.env.example
+
+# Ignore git and VCS
+.git/
+.gitignore
+.github/
+
+# Ignore OS / IDE files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

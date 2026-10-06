@@ -14,25 +14,27 @@ DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 
 def setup_logging(level: str = "DEBUG") -> None:
-    os.makedirs(LOG_DIR, exist_ok=True)
-
     formatter = logging.Formatter(fmt=LOG_FORMAT, datefmt=DATE_FORMAT)
 
-    # Console handler
+    # Console handler — stdout logging for Cloud Run, Docker, and terminal
     console = logging.StreamHandler()
     console.setFormatter(formatter)
-
-    # Rotating file handler — 5 MB per file, keep 3 backups
-    file_handler = logging.handlers.RotatingFileHandler(
-        LOG_FILE, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"
-    )
-    file_handler.setFormatter(formatter)
 
     root = logging.getLogger()
     root.setLevel(getattr(logging, level.upper(), logging.INFO))
     root.handlers.clear()
     root.addHandler(console)
-    root.addHandler(file_handler)
+
+    # Rotating file handler — optional, if log directory is writable
+    try:
+        os.makedirs(LOG_DIR, exist_ok=True)
+        file_handler = logging.handlers.RotatingFileHandler(
+            LOG_FILE, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"
+        )
+        file_handler.setFormatter(formatter)
+        root.addHandler(file_handler)
+    except (OSError, PermissionError):
+        pass  # Cloud Run or container environments fallback gracefully to stdout
 
     # Suppress noisy third-party loggers
     for noisy in ("uvicorn.access", "httpx", "httpcore", "urllib3", "yfinance"):
