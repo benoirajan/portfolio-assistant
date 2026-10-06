@@ -1,377 +1,323 @@
 # High-Level Architecture Design (HLD)
-## Portfolio Assistant with Zerodha Integration & AI Advisory
+## Portfolio Assistant — Multi-Tenant Hybrid Cloud Architecture
 
 ---
 
 ## 1. Executive Summary & Objectives
 
 ### 1.1 Overview
-The **Portfolio Assistant** is a personal financial architecture designed to automate portfolio tracking, risk analysis, sector exposure evaluation, and intelligent stock buy/sell recommendations. By integrating with **Zerodha's Kite Connect API**, the application synchronizes live Demat account holdings, positions, and market feeds. It combines deterministic quantitative metrics (Sharpe ratio, Beta, sector concentration, valuation multiples) with Large Language Models (LLMs) to generate personalized portfolio insights and actionable rebalancing recommendations.
+The **Portfolio Assistant** is a modern, cloud-native financial intelligence platform designed to automate portfolio tracking, fundamental and quantitative risk analysis, capital gains tax optimization, and AI-driven stock advisory recommendations.
+
+By integrating with Indian broker APIs (starting with **Zerodha Kite Connect**) and universal statement parsers (CAS PDF / Broker CSVs), the platform synchronizes Demat account holdings, positions, and market feeds. It pairs deterministic quantitative analytics (XIRR, Sharpe ratio, Sortino, Beta, sector concentration) with Large Language Models (LLMs like **Google Gemini**) to generate personalized rebalancing insights and human-in-the-loop staged execution orders.
 
 ### 1.2 Core Objectives
-- **Automated Holding Sync**: Daily ingestion of portfolio holdings, cash balance, and current positions from Zerodha Kite Connect API.
-- **Portfolio Health & Risk Analytics**: Compute sector concentration, market cap distribution (Large/Mid/Small cap), asset allocation drift, performance metrics (XIRR, CAGR), and volatility exposure.
-- **AI-Driven Advisory & Recommendations**: Generate data-backed recommendations (Buy/Sell/Hold/Trim) based on fundamental, technical, and macroeconomic signals using LLM integration (e.g., Google Gemini).
-- **Human-in-the-Loop Order Guard**: Provide one-click order staging with explicit user confirmation before executing trades via Zerodha API.
-- **Notification & Alerting System**: Trigger real-time alerts for target prices, stop-loss breaches, sector overload, and scheduled rebalancing reports.
+- **Universal & Broker-Integrated Sync**: Real-time Demat sync via Zerodha Kite Connect and universal ingestion (CAS PDF / Broker CSVs).
+- **Portfolio Health & Risk Analytics**: Real-time evaluation of sector concentration, market cap distribution (Large/Mid/Small cap), asset allocation drift, performance metrics (XIRR, CAGR), and volatility exposure.
+- **AI-Driven Advisory & Recommendations**: Generate data-backed recommendations (Buy/Sell/Hold/Trim) based on fundamental, technical, and macroeconomic signals using Google Gemini API with strict Pydantic guardrails.
+- **Human-in-the-Loop Order Guard**: Provide one-click order staging with explicit user confirmation before executing trades via broker APIs.
+- **Tax-Loss Harvesting Analyzer**: Real-time calculation of realized and unrealized STCG/LTCG with tax-loss harvesting candidate recommendations.
+- **Multi-Tenant SaaS Foundation**: Secure user authentication (Supabase Auth / Google OAuth), user-isolated data persistence, and tiered SaaS monetization.
 
 ---
 
-## 2. System Architecture Overview
+## 2. Hybrid Butterfly System Architecture
+
+The system utilizes a decoupled, serverless **Hybrid Cloud Architecture** ensuring zero infrastructure maintenance costs, instant global CDN delivery, and automatic scaling:
 
 ```mermaid
-graph TD
-    subgraph Client Layer
-        UI["Web UI (Streamlit / React)"]
-        BOT["Telegram Alert Bot / Webhook"]
+flowchart LR
+    subgraph FRONTEND["Frontend & Edge Tier (Vercel)"]
+        direction TB
+        V1["Next.js 14 App Router"]
+        V2["React Query & Recharts UI"]
+        V3["Tailwind CSS Dashboard"]
+        V4["@supabase/supabase-js Auth"]
+        V1 --> V2 --> V3
     end
 
-    subgraph API Gateway & Authentication
-        GATEWAY["FastAPI Backend Gateway"]
-        AUTH["Zerodha OAuth 2.0 Handler"]
+    subgraph BACKEND["Backend & Compute Tier (GCP Cloud Run)"]
+        direction TB
+        C1["Dockerized FastAPI (Python 3.10+)"]
+        C2["Uvicorn ASGI Web Server"]
+        C3["SQLAlchemy 2.0 Engine & Session Pool"]
+        C4["Rule Engine & AI Advisory Pipeline"]
+        C1 --> C2 --> C3
     end
 
-    subgraph External Integrations
-        KITE["Zerodha Kite Connect API"]
-        KITE_WS["Kite Ticker (WebSocket)"]
-        YFIN["Market Data Provider (yfinance / NSE)"]
-        LLM["AI Engine (Google Gemini API)"]
+    subgraph DATA_SERVICES["Cloud Persistence & External Services Tier"]
+        direction TB
+        D1[("Supabase Managed PostgreSQL\n(Transaction Pooler :6543)")]
+        D2[("Upstash Serverless Redis\n(Cache & Rate Limiting)")]
+        D3["Google Gemini AI API\n(google-genai)"]
+        D4["Zerodha Kite Connect API\n(Live Demat Ingestion)"]
+        D5["Market Data Providers\n(yfinance / NSE RSS / Public APIs)"]
     end
 
-    subgraph Core Processing Engines
-        INGEST["Data Ingestion & Sync Engine"]
-        ANALYTICS["Portfolio Analytics & Risk Engine"]
-        REBALANCER["Rule-Based Rebalancer"]
-        ADVISOR["AI Recommendation Generator"]
-        ORDER_MGR["Order Staging & Safety Guard"]
-    end
-
-    subgraph Data Persistence
-        DB[("PostgreSQL / TimescaleDB")]
-        CACHE[("Redis Cache")]
-    end
-
-    UI -->|REST / WS| GATEWAY
-    BOT -->|Alerts| GATEWAY
-    GATEWAY --> AUTH
-    AUTH -->|OAuth Session| KITE
-    
-    GATEWAY --> INGEST
-    INGEST -->|Holdings / Positions| KITE
-    INGEST -->|Tickers & Candles| KITE_WS
-    INGEST -->|Fundamental / Benchmark Data| YFIN
-    
-    INGEST --> DB
-    INGEST --> CACHE
-    
-    ANALYTICS --> DB
-    REBALANCER --> ANALYTICS
-    ADVISOR --> ANALYTICS
-    ADVISOR --> LLM
-    
-    ORDER_MGR -->|Staged Orders| UI
-    UI -->|User Approval| ORDER_MGR
-    ORDER_MGR -->|Place Order| KITE
+    FRONTEND -- HTTPS / Bearer JWT --> BACKEND
+    BACKEND -- Connection Pooling --> D1
+    BACKEND -- TLS Redis Protocol --> D2
+    BACKEND -- REST / SDK Calls --> D3
+    BACKEND -- OAuth / Session Sync --> D4
+    BACKEND -- HTTP Fallback Chain --> D5
 ```
 
 ---
 
 ## 3. Component Architecture Breakdown
 
-### 3.1 Zerodha Integration Layer
-- **OAuth Session Manager**: 
-  - Generates Kite login URL daily (`https://kite.zerodha.com/connect/login?api_key=...`).
-  - Exchanges `request_token` for daily `access_token` via `kite.generate_session()`.
-  - Token is AES-encrypted before storage in Redis. The raw token is never persisted in plaintext. For production deployments, use AWS Secrets Manager or HashiCorp Vault.
-  - Token expires daily at 6 AM IST. A proactive re-auth reminder notification is triggered at 5:30 AM to prevent silent session failures.
-- **Holdings Sync Worker**: Fetches equity holdings (`GET /portfolio/holdings`), net positions (`GET /portfolio/positions`), and trade history (`GET /trades`) for XIRR cash flow reconstruction.
-- **Kite Ticker Service**: WebSocket client connecting to Zerodha's streaming ticker (`wss://ws.kite.trade`) to receive live tick data (LTP, OHLC) for portfolio stocks.
-- **Rate Limit Guard**: All Kite API calls are wrapped with `tenacity` retry decorators (exponential backoff, max 3 retries) and a token-bucket rate limiter to enforce the 3 req/sec ceiling proactively.
+### 3.1 Broker Integration & Ingestion Layer
+- **Zerodha Kite Connect SDK**:
+  - Web session login (`enctoken`) and official Kite OAuth 2.0 API flows.
+  - Holdings worker fetching Demat equity holdings (`GET /portfolio/holdings`) and positions.
+  - Rate limiting & tenacity retry: Exponential backoff with jitter on all broker calls.
+- **Universal Statement Parsers (Phase 6)**:
+  - CDSL/NSDL CAS PDF statement parser for universal broker ingestion.
+  - Standard broker CSV uploaders (Zerodha Console, Groww, ICICI Direct).
 
-### 3.2 Data Ingestion & Storage Layer
-- **Historical Market Data Sync**: Ingests historical daily candles for portfolio holdings and benchmark indices (e.g., NIFTY 50, NIFTY 500) to calculate Beta, CAGR, and volatility.
-- **Stock Fundamentals Provider**: Enriches stock data with fundamental ratios (P/E, P/B, Debt/Equity, ROE, Market Cap) using an NSE-focused tiered provider chain:
-  1. **Primary**: `nsepython` / `jugaad-trader` — NSE-native Python libraries that fetch fundamentals directly from NSE public endpoints. No API key required. Provides SEBI-defined sector and market cap classifications.
-  2. **Secondary**: `yfinance` with `.NS` suffix — Yahoo Finance fallback for NSE-listed stocks. Unofficial scraper, used only when primary is unavailable.
-  3. **Static metadata DB** — hardcoded fundamentals for common Nifty 50 / Nifty 500 stocks. Used when both live sources fail (off-market hours, rate limits).
-  - All fundamental data is cached with a 24-hour TTL to minimize external API calls.
-- **Background Job Scheduler**: `APScheduler` manages all recurring background tasks:
-  - Daily (market open): Holdings sync, fundamentals refresh.
-  - Daily (5:30 AM): Zerodha re-auth reminder.
-  - Weekly (Sunday): Portfolio digest notification dispatch.
-  - On-demand: Historical candle download, order status polling.
-- **Time-Series Storage**: Stores daily snapshots of portfolio net worth, stock holdings, and performance metrics.
+### 3.2 Data Persistence & Caching Layer
+- **Managed PostgreSQL (Supabase)**:
+  - Primary persistent relational store with connection pooling (Transaction mode port `6543`).
+  - Version-controlled schema migrations managed via **Alembic**.
+  - Encrypted broker session storage and user-isolated portfolio tables.
+- **Serverless Redis (Upstash)**:
+  - In-memory cache for market quotes, enriched fundamentals, and AI advisory reports.
+  - Sliding-window rate limiting for API quota management.
+  - Automatic graceful degradation to local memory/disk cache during offline or testing modes.
 
-### 3.3 Analytics & Risk Engine
-- **Asset Allocation & Sector Analysis**: Measures portfolio weight per sector (e.g., IT, Banking, Pharma) against pre-configured risk caps (e.g., max 25% single sector).
-- **Market Cap Distribution**: Segregates holdings into Large Cap, Mid Cap, and Small Cap categories.
-- **Performance Ratios**: Calculates XIRR (Extended Internal Rate of Return), Sharpe Ratio, Sortino Ratio, and Portfolio Beta relative to Nifty 50.
-- **Unrealized P&L & Tax Harvesting Analyzer**: Evaluates Short-Term Capital Gains (STCG) vs. Long-Term Capital Gains (LTCG) tax implications for potential sales.
+### 3.3 Analytics & Quantitative Risk Engine
+- **Asset Allocation & Sector Analysis**: Measures portfolio weights across sectors against user-defined risk caps (e.g., max 25% single sector).
+- **Market Cap Segregation**: Categorizes assets into Large Cap, Mid Cap, and Small Cap classes.
+- **Deterministic Metrics**: Computes portfolio XIRR, Sharpe Ratio, Sortino Ratio, and Portfolio Beta against the NIFTY 50 benchmark.
+- **Indian Income Tax Harvesting Engine**: Classifies realized and unrealized gains into STCG (20%) and LTCG (12.5% beyond ₹1.25L exemption under Budget 2024 rules).
 
-### 3.4 AI Recommendation & Advisory Engine
-- **Deterministic Rule Engine**: 
-  - Identifies over-concentrated stocks (> 15% of total portfolio value).
-  - Flags underperforming stocks breaking 200-day moving average or experiencing continuous earnings deterioration.
-  - Identifies rebalancing opportunities based on target model portfolio allocations.
-- **LLM Context Synthesis (Gemini Integration)**:
-  - Applies data minimization before constructing the prompt: only relative weights (%), financial ratios (P/E, ROE), and risk category are sent. Absolute monetary values (entry price, invested amount) are never included in the LLM payload.
-  - Structured JSON prompt template sent to `gemini-2.0-flash`. Output is parsed into a Pydantic `RecommendationList` schema.
-  - **Alternative**: For stricter data privacy, a self-hosted model (Ollama + Mistral) can replace Gemini with no data leaving the local environment.
-- **Guardrails**: LLM output is validated via Pydantic before use:
-  - `action` must be one of `BUY | SELL | HOLD | TRIM`.
-  - `confidence_score` must be a float in `[0.0, 1.0]`.
-  - `symbol` must exist in the current holdings list (prevents hallucinated tickers).
-  - `target_allocation_pct` sum across all recommendations must not exceed 100%.
-  - No single small/micro-cap allocation may exceed 20%.
-  - Any response failing validation is rejected and logged.
+### 3.4 Multi-Stage AI Advisory Engine
+- **Deterministic Rule Engine**: Flags over-concentration (>15%), underperforming assets breaking 200-day moving averages, and sector overweights.
+- **LLM Context Synthesis (Google Gemini API)**:
+  - Applies strict data minimization: only relative weights (%), financial ratios (P/E, ROE), and macro news context are sent to LLM payloads. Absolute monetary balances are stripped.
+  - Structured prompt contracts using `gemini-2.0-flash` or `gemini-3.1-flash-lite`.
+- **Pydantic Guardrails**:
+  - Enforces valid action enums (`BUY | SELL | HOLD | TRIM`).
+  - Hallucination prevention: Symbols must strictly exist in the portfolio or target universe.
+  - Risk caps: Single small/micro-cap allocation cannot exceed 20%. Total target allocation sums to 100%.
 
-### 3.5 Order Staging & Safety Guard
-- **Human-in-the-Loop Confirmation**: The system **never** places direct trades automatically. All suggested buys/sells are added to an "Order Staging Queue" persisted in PostgreSQL.
-- **Validation Rules**:
-  - Max order value ceiling.
-  - Limit price checks (slippage protection).
-  - Available margin verification (`GET /user/margins`).
-- **Execution Engine**: Sends approved limit/market orders to Zerodha (`POST /orders/regular`). The returned `order_id` is stored immediately.
-- **Order Status Polling**: After submission, a background job polls `GET /orders/{order_id}` to track lifecycle transitions (`OPEN` → `COMPLETE` → `REJECTED`/`CANCELLED`) and syncs final status back to the DB. A notification is dispatched on `COMPLETE` or `REJECTED`.
+### 3.5 Order Staging & Safety Guard (Phase 4)
+- **Human-in-the-Loop Trade Queue**: Suggestions are placed in an Order Staging Queue in PostgreSQL with explicit user confirmation required before submission.
+- **Pre-Trade Safety Limits**: Maximum single-order ceiling, slippage protection, and margin checks.
 
 ---
 
-## 4. Data Flow & Sequence Diagrams
+## 4. Sequence & Data Flow Diagrams
 
-### 4.1 Daily Authentication & Holdings Sync Sequence
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor User
-    participant UI as Streamlit UI
-    participant Backend as FastAPI Backend
-    participant Redis as Redis (Encrypted Token Store)
-    participant Zerodha as Zerodha Kite Connect API
-    participant DB as PostgreSQL Database
-
-    User->>UI: Click "Login with Zerodha"
-    UI->>Backend: GET /health (connection check)
-    Backend-->>UI: 200 OK
-    UI->>Backend: Request Login URL
-    Backend-->>UI: Return Kite Auth URL
-    User->>Zerodha: Authorize Application
-    Zerodha-->>UI: Redirect with request_token
-    UI->>Backend: Send request_token
-    Backend->>Zerodha: Generate Session (request_token + API Secret)
-    Zerodha-->>Backend: Return access_token & User Profile
-    Backend->>Redis: Store AES-encrypted access_token (TTL: until 6AM)
-    Backend->>DB: Store session metadata (user_id, expiry)
-    Backend->>Zerodha: Fetch Holdings (GET /portfolio/holdings)
-    Backend->>Zerodha: Fetch Trade History (GET /trades)
-    Zerodha-->>Backend: Return Holdings + Trade Records
-    Backend->>DB: Save Daily Portfolio Snapshot
-    Backend-->>UI: Display Portfolio Dashboard
-```
-
-### 4.2 Portfolio Analysis & AI Advice Flow
+### 4.1 Authentication, Holdings Ingestion & DB Persistence
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor User
-    participant UI as Front-End Dashboard
-    participant Backend as FastAPI Backend
-    participant Engine as Analytics & Risk Engine
-    participant Guard as Safety Guardrails (Pydantic)
-    participant LLM as Gemini AI Service
+    participant UI as Next.js 14 Frontend
+    participant Backend as FastAPI Gateway
+    participant Redis as Upstash Redis
+    participant DB as Supabase PostgreSQL
+    participant Kite as Zerodha Kite Connect API
 
-    User->>UI: Request Portfolio Review / Recommendation
-    UI->>Backend: GET /api/v1/recommendations
-    Backend->>Engine: Calculate Risk, Concentration & Ratios
-    Engine-->>Backend: Return Quantitative Portfolio Profile
-    Backend->>Backend: Apply data minimization (strip absolute values)
-    Backend->>LLM: Pass minimized payload (ratios, weights, goals only)
-    LLM-->>Backend: Return Recommendations (JSON)
-    Backend->>Guard: Validate schema, symbols, allocation caps
-    alt Validation passes
-        Guard-->>Backend: Approved RecommendationList
-        Backend-->>UI: Render Buy/Sell Signals & Advisory Report
-    else Validation fails
-        Guard-->>Backend: Rejected — log & discard
-        Backend-->>UI: Show fallback rule-based recommendations
+    User->>UI: Open Dashboard / Provide Session
+    UI->>Backend: GET /api/v1/holdings (X-Enctoken / Bearer Token)
+    Backend->>Redis: Check Holdings Cache (Key: holdings:hash)
+    alt Cache Hit
+        Redis-->>Backend: Return Cached Holdings
+    else Cache Miss
+        Backend->>Kite: Fetch Holdings (GET /portfolio/holdings)
+        Kite-->>Backend: Raw Demat Holdings JSON
+        Backend->>Backend: Enrich with Fundamentals & P&L
+        Backend->>DB: Upsert Portfolio & UserHolding records
+        Backend->>Redis: Set Holdings Cache (TTL: 300s)
     end
+    Backend-->>UI: Return Enriched Portfolio Payload
+    UI-->>User: Render Interactive Dashboard & KPIs
+```
+
+### 4.2 AI Advisory & Rebalancing Flow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant UI as Next.js 14 Frontend
+    participant Backend as FastAPI Backend
+    participant RuleEngine as Deterministic Rule Engine
+    participant Gemini as Google Gemini AI
+    participant Guard as Pydantic Safety Guardrails
+
+    User->>UI: Request AI Advisory (Goal, Concentration Caps)
+    UI->>Backend: GET /api/v1/advisory/recommendations
+    Backend->>RuleEngine: Run Pre-Flight Diagnostics
+    RuleEngine-->>Backend: Rule Flags (Overconcentration, Underperformance)
+    Backend->>Backend: Construct Minimized Prompt (Weights & Ratios only)
+    Backend->>Gemini: Send Structured Prompt Payload
+    Gemini-->>Backend: Raw Recommendation JSON
+    Backend->>Guard: Validate Schema, Symbol Exists, Max Caps
+    alt Validation Passed
+        Guard-->>Backend: Validated Advisory Report
+    else Validation Failed
+        Guard-->>Backend: Fallback to Deterministic Rules
+    end
+    Backend-->>UI: Return Actionable Recommendations & Trade Basket
+    UI-->>User: Display AI Review & Staging Actions
 ```
 
 ---
 
-## 5. Zerodha Kite Connect API Specification
+## 5. Technology Stack Specification
 
-| Endpoint | Method | Purpose | Rate Limit |
-| :--- | :--- | :--- | :--- |
-| `/session/token` | POST | Exchange request token for access token | 3 req/sec |
-| `/portfolio/holdings` | GET | Retrieve user demat long-term holdings | 3 req/sec |
-| `/portfolio/positions` | GET | Retrieve intra-day & F&O positions | 3 req/sec |
-| `/user/margins` | GET | Check available funds / cash margin | 3 req/sec |
-| `/instruments` | GET | Master instrument dump (stocks, ETFs, indices) | 1 req/day |
-| `/quote` | GET | Retrieve full market quote (LTP, OHLC, depth) | 1 req/sec |
-| `/orders/regular` | POST | Stage / Place buy or sell order | 10 req/sec |
-| `/orders/{order_id}` | GET | Poll order lifecycle status | 3 req/sec |
-| `/trades` | GET | Retrieve historical trade book for XIRR | 3 req/sec |
-
-> [!IMPORTANT]
-> **Kite Connect Rate Limits**: The Kite API enforces a strict rate limit of 3 requests/second for standard endpoints and 1 request/second for bulk quote calls. Caching layer (Redis) is mandatory for quote data. All API calls must use `tenacity` retry with exponential backoff and a token-bucket rate limiter at the service layer.
+| Component | Technology Choice | Hosting / Deployment | Free Tier / Production Capability |
+|---|---|---|---|
+| **Frontend Framework** | Next.js 14 (App Router, TypeScript, Tailwind, Recharts) | **Vercel** | Edge CDN, 100GB bandwidth/mo free |
+| **Backend Framework** | Python (FastAPI, Uvicorn, Pydantic v2) | **GCP Cloud Run** | Serverless containers, 2M req/mo free |
+| **Database & Identity** | PostgreSQL 16 + Supabase Auth | **Supabase** | 500MB DB, 50,000 MAU free tier |
+| **ORM & Migrations** | SQLAlchemy 2.0 + Alembic | In-App / Backend | Fully version-controlled DDL migrations |
+| **Cache & Rate Limits** | Redis | **Upstash Redis** | Serverless Redis, 10,000 req/day free |
+| **AI Advisory Engine** | Google Gemini API (`google-genai`) | Managed API | High context window & structured JSON |
+| **Broker Integration** | Kite Connect SDK (`kiteconnect`) | Backend Service | Live Zerodha Demat sync |
+| **Testing & CI/CD** | `unittest`, `run_dev.sh`, GitHub Actions | Local & Cloud | Automated test-before-boot pipeline |
 
 ---
 
-## 6. Security, Compliance & Risk Management
-
-> [!CAUTION]
-> **API Credentials & Trading Safety**
-> - **API Key & Secret**: Must be stored strictly in environment variables or secure key vaults (`.env`, HashiCorp Vault, AWS Secrets Manager). Never commit credentials to version control.
-> - **Session Token**: AES-encrypt the Zerodha `access_token` before storing in Redis. Never store the raw token in plaintext in any cache or database.
-> - **LLM Data Privacy**: Apply data minimization before sending any data to external LLM APIs. Only relative portfolio weights and financial ratios are permitted in LLM payloads. Absolute monetary values must be stripped. Review and accept the LLM provider's data processing terms.
-> - **Order Safety**: Always implement a **Human-in-the-Loop** model. Automated trading without explicit user authorization creates severe financial and regulatory risk.
-> - **Observability**: All order staging, approval, and execution events must be logged with full context using structured logging (`structlog`) as a financial audit trail. A `request_id` must be propagated from FastAPI middleware through all downstream service calls.
-> - **Financial Disclaimer**: The application operates as a personal decision-support system, not a SEBI-registered investment advisor (RIA). Clear disclaimers must be shown in the UI.
-
----
-
-## 7. Recommended Technology Stack
-
-| Layer | Technology Choice | Rationale |
-| :--- | :--- | :--- |
-| **Backend Framework** | Python (FastAPI) | High-performance async Python backend, native support for Pydantic data schemas. |
-| **Kite Connect SDK** | `kiteconnect` (Official Python SDK) | Official maintained Python client for Zerodha API. |
-| **Data Analytics** | Pandas, NumPy, `PyPortfolioOpt` | Efficient matrix math, Sharpe ratio calculation, and portfolio optimization algorithms. |
-| **AI / LLM Service** | Google Gemini API (`google-genai`) | High-context, structured JSON output capabilities for portfolio analysis. |
-| **Database** | PostgreSQL + SQLAlchemy / Alembic | Robust relational schema for portfolio snapshots, transactions, and user settings. |
-| **Caching Layer** | Redis | Caching stock quotes, session tokens, and rate-limit counters. |
-| **Frontend Framework** | Streamlit | Streamlit for the full MVP through Phase 4. A migration to a production UI framework (e.g., Next.js) is deferred to a future phase with explicit scope. |
-| **Job Scheduler** | `APScheduler` | Lightweight in-process scheduler for daily sync, weekly digest, and order polling jobs. No broker required for single-user deployment. |
-| **Retry & Rate Limiting** | `tenacity` | Declarative retry-with-backoff decorators on all external API calls. |
-| **Logging** | `structlog` | Structured JSON logging with `request_id` propagation for audit trails and debugging. |
-
----
-
-## 8. Database Schema Architecture
+## 6. Database Schema Architecture (PostgreSQL)
 
 ```mermaid
 erDiagram
-    USERS ||--o{ PORTFOLIO_SNAPSHOTS : has
-    USERS ||--o{ ORDERS : stages
-    PORTFOLIO_SNAPSHOTS ||--|{ HOLDINGS : contains
-    USERS ||--o{ TRADE_TRANSACTIONS : records
+    users ||--o{ portfolios : owns
+    users ||--o{ user_sessions : has
+    users ||--o{ staged_orders : stages
+    users ||--o{ subscriptions : subscribes
+    portfolios ||--|{ user_holdings : contains
 
-    USERS {
-        uuid id PK
-        string email
-        string zerodha_user_id
-        string risk_profile
+    users {
+        string id PK "UUID"
+        string email UK
+        string hashed_password
+        string full_name
+        string tier "FREE | PRO | ELITE"
+        boolean is_active
         timestamp created_at
+        timestamp updated_at
     }
 
-    PORTFOLIO_SNAPSHOTS {
-        uuid id PK
-        uuid user_id FK
+    portfolios {
+        string id PK "UUID"
+        string user_id FK
+        string name
+        string token_hash UK
         float total_investment
         float current_value
         float total_pnl
-        float xirr
-        timestamp snapshot_date
+        float total_pnl_percentage
+        json raw_summary
+        timestamp created_at
+        timestamp updated_at
     }
 
-    HOLDINGS {
-        uuid id PK
-        uuid snapshot_id FK
+    user_holdings {
+        string id PK "UUID"
+        string portfolio_id FK
         string tradingsymbol
         string exchange
         string isin
         int quantity
         float average_price
         float last_price
-        float current_value
+        float close_price
         float pnl
+        float pnl_percentage
         string sector
         string cap_category
+        json raw_data
+        timestamp updated_at
     }
 
-    ORDERS {
-        uuid id PK
-        uuid user_id FK
+    user_sessions {
+        string id PK "UUID"
+        string user_id FK
+        string token_hash
+        text enctoken_encrypted
+        timestamp expires_at
+        timestamp created_at
+    }
+
+    staged_orders {
+        string id PK "UUID"
+        string user_id FK
         string tradingsymbol
-        string transaction_type
+        string transaction_type "BUY | SELL"
         int quantity
         float price
-        string order_type
-        string status
-        string zerodha_order_id
-        string rejection_reason
+        string order_type "LIMIT | MARKET"
+        string status "STAGED | SUBMITTED | COMPLETED | REJECTED"
+        string broker_order_id
         timestamp staged_at
         timestamp executed_at
     }
 
-    TRADE_TRANSACTIONS {
-        uuid id PK
-        uuid user_id FK
-        string tradingsymbol
-        string isin
-        string transaction_type
-        int quantity
-        float price
-        timestamp trade_date
+    subscriptions {
+        string id PK "UUID"
+        string user_id FK
+        string plan_type "FREE | PRO | ELITE"
+        string razorpay_sub_id
+        string status "ACTIVE | CANCELLED"
+        timestamp valid_until
+        timestamp created_at
     }
 ```
 
 ---
 
-## 9. Project Directory Structure
+## 7. Project Directory Structure
 
 ```text
 portfolio_assistant/
-├── docs/
-│   ├── HLD.md                  # High-Level System Architecture Document
-│   └── plans/                  # Implementation plans per phase
-│       ├── phase_1_authentication_and_holdings.md
-│       ├── phase_2_fundamental_and_sector_analytics.md
-│       ├── phase_3_ai_advisory_engine.md
-│       └── phase_4_order_staging_and_alerts.md
-├── src/
-│   ├── api/                    # FastAPI routes & endpoints
-│   ├── core/                   # Config & security
-│   ├── services/               # Zerodha client & business logic
-│   └── ui/                     # Streamlit frontend app
-├── requirements.txt            # Python dependencies
-└── README.md                   # Setup & developer guide
+├── backend/                        # FastAPI Backend Application
+│   ├── alembic/                    # Database migration scripts & versions
+│   │   ├── versions/
+│   │   │   └── 0001_initial_schema.py
+│   │   └── env.py
+│   ├── src/
+│   │   ├── api/                    # REST routers (auth, holdings, analytics, advisory)
+│   │   ├── core/                   # Config, logging, cache, retry
+│   │   ├── db/                     # Base & SQLAlchemy session pool manager
+│   │   ├── models/                 # SQLAlchemy 2.0 ORM models (User, Portfolio, Holding, Session)
+│   │   ├── services/               # Zerodha client, market data, rebalancer, LLM advisor
+│   │   └── main.py                 # FastAPI application bootstrap & health probes
+│   ├── tests/                      # Automated unit & integration tests
+│   ├── requirements.txt            # Python dependencies
+│   ├── alembic.ini                 # Alembic configuration
+│   └── run_dev.sh                  # Development startup script (test-before-boot)
+│
+├── frontend/                       # Next.js 14 React Dashboard Application
+│   ├── app/                        # App router pages (dashboard, login, settings)
+│   ├── components/                 # React components (tabs, KPIs, charts, header, sidebar)
+│   ├── hooks/                      # React Query & custom data hooks
+│   ├── lib/                        # Axios client, types, utility helpers
+│   ├── package.json
+│   └── tailwind.config.ts
+│
+├── docs/                           # Architecture, LLD, and Phase Plans
+│   ├── architecture/
+│   │   ├── HLD.md                  # High-Level Architecture Design (This Document)
+│   │   └── HYBRID_DEPLOYMENT_PLAN.md
+│   ├── lld/                        # Detailed Low-Level Design documents (00 to 09)
+│   └── plans/                      # Phased roadmaps (Phases 1 to 7)
+│
+└── .agents/                        # Agent Skills, Briefings & Workspace Rules
 ```
 
 ---
 
-## 10. Phased Implementation Roadmap
+## 8. Phased Implementation Roadmap
 
-### Phase 1: Authentication & Holdings Ingestion (MVP)
-- Implement Zerodha OAuth 2.0 login flow with AES-encrypted token storage in Redis.
-- Setup FastAPI server with **PostgreSQL + SQLAlchemy + Alembic** from day one (no SQLite).
-- Add `GET /health` endpoint and Streamlit connection status indicator.
-- Fetch, parse, and display current holdings and net worth summary on a Streamlit UI dashboard.
-- Wrap all Kite API calls with `tenacity` retry and rate limiter.
-- Implement structured logging with `structlog` and `request_id` propagation.
-
-### Phase 2: Fundamental & Sector Analytics Engine
-- Integrate stock metadata enricher using an NSE-focused tiered provider chain (`nsepython` primary, `yfinance .NS` secondary, static DB fallback).
-- Ingest trade history via `GET /trades` to supply XIRR cash flow inputs.
-- Compute sector exposure, single-stock concentration risk, and asset allocation breakdown.
-- Calculate portfolio XIRR, unrealized gain/loss, and STCG/LTCG tax breakdown.
-- Introduce `APScheduler` for daily holdings sync and weekly digest scheduling.
-
-### Phase 3: AI Advisory & Recommendation Engine
-- Apply data minimization policy before constructing LLM payloads (ratios and weights only, no absolute values).
-- Integrate Google Gemini API with tailored financial prompt engineering.
-- Implement deterministic rule engine for concentration limits and rebalancing signals.
-- Enforce full Pydantic guardrail validation on all LLM responses (symbol existence, action enum, allocation caps).
-- Generate structured Buy / Sell / Hold recommendations with rationale.
-
-### Phase 4: Order Staging Guard & Notification System
-- Implement human-in-the-loop Order Staging Queue persisted in PostgreSQL.
-- Add Zerodha order placement integration with pre-trade safety limits.
-- Implement order status polling job (`GET /orders/{order_id}`) to track full order lifecycle.
-- Add Telegram bot / Email alerts for weekly portfolio reviews, stop-loss triggers, order completion, and rejection events.
-
-### Phase 5: Production UI (Future)
-- Migrate from Streamlit to a production-grade frontend (e.g., Next.js + Tailwind + Recharts).
-- Define OpenAPI contract between FastAPI backend and new frontend before implementation begins.
+* **Phase 1: Ingestion & Auth MVP (Completed ✅)**: Zerodha Demat sync, holdings parsing, P&L calculations.
+* **Phase 2: Fundamental & Sector Analytics (Completed ✅)**: Market data multi-tier fallback chain, XIRR calculations, STCG/LTCG tax harvesting analyzer.
+* **Phase 3: AI Advisory & Recommendation Engine (Completed ✅)**: Rule-based engine, Google Gemini 3-stage advisory pipeline, structured trade basket generation, Pydantic guardrails.
+* **Phase 4: Order Staging Guard & Notification System (Next)**: Staged order queue in PostgreSQL, human confirmation gate, Telegram alerts.
+* **Phase 5: Production Next.js Dashboard (Completed ✅)**: React 14 + Recharts dashboard with interactive tables, KPI cards, and theme switcher.
+* **Phase 6: Multi-Tenant Architecture & Live Cloud Persistence (Active / In Progress 🚀)**: Supabase PostgreSQL database persistence, connection pooling, Alembic migrations, Upstash Redis cache.
+* **Phase 7: SaaS Monetization & Entitlements (Upcoming)**: Razorpay subscription webhooks, tier-based rate limiters, premium features.

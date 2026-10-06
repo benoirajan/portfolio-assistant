@@ -25,8 +25,6 @@ backend/
 │   │   ├── tax_harvesting.py
 │   │   ├── rebalancer.py
 │   │   └── llm_advisor.py
-│   ├── ui/
-│   │   └── app.py          # Streamlit dashboard (pre-React)
 │   └── main.py             # FastAPI entrypoint
 ├── .env.example
 ├── requirements.txt
@@ -75,6 +73,20 @@ KITE_API_SECRET=your_zerodha_api_secret
 KITE_REDIRECT_URL=http://127.0.0.1:8000/api/v1/auth/callback
 DEMO_MODE=true
 GEMINI_API_KEY=your_gemini_api_key
+REDIS_URL=redis://localhost:6379/0
+```
+
+### 4. Start Redis Cache (Docker)
+
+Run Redis container using Docker Compose from the root directory:
+
+```bash
+docker compose up -d redis
+```
+
+Or via Docker CLI:
+```bash
+docker run -d --name portfolio_redis -p 6379:6379 -v redis_data:/data redis:7-alpine
 ```
 
 See [Zerodha Setup Guide](../docs/guides/zerodha_api_setup_guide.md) for obtaining API credentials.
@@ -89,8 +101,3 @@ python -m uvicorn src.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 - Swagger UI: http://127.0.0.1:8000/docs
 
-### Streamlit dashboard (pre-React)
-```bash
-streamlit run src/ui/app.py
-```
-- Dashboard: http://localhost:8501

@@ -9,7 +9,6 @@
 
 ## Active Branch
 - All React frontend work is on branch `feature/react-frontend`
-- Do not modify `backend/src/ui/app.py` (Streamlit) while building the React frontend
 
 ## Version Control Rules
 

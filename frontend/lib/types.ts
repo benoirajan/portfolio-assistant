@@ -137,13 +137,207 @@ export interface BasketResponse {
   budget_utilised_pct: number
 }
 
-// ── Auth ──────────────────────────────────────────────────────────────────────
+export interface ZerodhaBasket {
+  id: string
+  name: string
+  item_count?: number
+}
+
+export interface ExportZerodhaBasketPayload {
+  basket_name: string
+  basket_id?: string
+  items: { symbol: string; action: string; quantity: number }[]
+}
+
+export interface ExportZerodhaBasketResponse {
+  status: string
+  basket_id: string
+  basket_name: string
+  item_count: number
+  kite_url: string
+  message: string
+}
+
+// ── Auth & User Identity ──────────────────────────────────────────────────────
+
+export interface User {
+  id: string
+  email: string
+  full_name?: string | null
+  tier: 'FREE' | 'PRO' | 'ELITE' | string
+  is_active: boolean
+  created_at?: string | null
+}
+
+export interface BrokerStatus {
+  has_enctoken: boolean
+  broker?: 'ZERODHA' | string | null
+}
+
+export interface AuthResponse {
+  status: string
+  access_token: string
+  token_type: string
+  user: User
+}
+
+export interface MeResponse {
+  status: string
+  user: User
+  broker_status: BrokerStatus
+}
+
+export interface BrokerStatusResponse {
+  status: string
+  has_enctoken: boolean
+  broker: string | null
+  message?: string
+}
 
 export interface LoginUrlResponse {
   status: string
   login_url: string
 }
 
+
+// ── Multi-Stage Pipeline Advisory ──────────────────────────────────────────────────
+
+export interface SectorHealth {
+  sector: string
+  weight_pct: number
+  status: string
+  comment: string
+}
+
+export interface StockHealth {
+  symbol: string
+  allocation_pct: number
+  business_quality: string
+  financial_quality: string
+  valuation: string
+  long_term_outlook: string
+  status: string
+  comment: string
+}
+
+export interface Stage1Diagnosis {
+  overall_quality: string
+  main_strength: string
+  main_weakness: string
+  biggest_concentration_risk: string
+  most_important_thing_to_monitor: string
+  sector_analysis: SectorHealth[]
+  stock_analysis: StockHealth[]
+  portfolio_risks: string[]
+  portfolio_strengths: string[]
+  future_capital_direction: string[]
+}
+
+export interface CandidateOpportunity {
+  symbol: string
+  sector: string
+  is_existing_holding: boolean
+  conviction_tier: 'HIGH_CONVICTION' | 'GOOD_OPPORTUNITY' | 'WATCHLIST' | 'AVOID_FOR_NOW'
+  valuation_assessment: string
+  portfolio_fit_summary: string
+  main_risk: string
+  rationale: string
+}
+
+export interface Stage2Ranking {
+  opportunity_summary: string
+  existing_vs_new_recommendation: string
+  strongest_opportunity: string
+  top_opportunities: CandidateOpportunity[]
+  sectors_to_prefer: string[]
+  sectors_to_be_careful: string[]
+  sectors_to_avoid: string[]
+}
+
+export interface WholeSharePurchase {
+  symbol: string
+  action: 'BUY' | 'HOLD' | 'TRIM' | 'SELL'
+  current_price: number
+  quantity: number
+  amount: number
+  rationale: string
+}
+
+export interface Stage3Execution {
+  action: 'BUY' | 'PARTIALLY_INVEST' | 'WAIT'
+  allocated_amount: number
+  cash_to_keep: number
+  purchases: WholeSharePurchase[]
+  why_this_decision: string[]
+  portfolio_impact: string[]
+  why_not_others: string
+  risks_to_understand: string[]
+  data_date_verified: string
+  simple_action_recommendation: string
+}
+
+export interface MultiStagePipelineResponse {
+  status: string
+  stage1: Stage1Diagnosis
+  stage2: Stage2Ranking
+  stage3: Stage3Execution
+  rule_flags: RuleFlag[]
+  source: 'llm' | 'rule_engine'
+  llm_provider?: string
+  total_budget: number
+  monthly_capacity: number
+}
+
 // ── Misc ──────────────────────────────────────────────────────────────────────
 
 export type ConnectionMode = 'demo' | 'enctoken' | 'kite'
+
+// ── Billing & Monetization ──────────────────────────────────────────────────
+
+export interface BillingPlan {
+  tier: 'FREE' | 'PRO' | 'ELITE'
+  price_inr: number
+  price_paise: number
+  ai_runs_per_month: number
+  features: string[]
+  highlight: boolean
+}
+
+export interface BillingPlansResponse {
+  status: string
+  mock_mode: boolean
+  plans: BillingPlan[]
+}
+
+export interface BillingOrderResponse {
+  status: string
+  razorpay_order_id: string
+  amount: number      // in paise
+  currency: string    // 'INR'
+  key_id: string      // Razorpay public key ID
+  mock_mode: boolean
+  target_tier: string
+}
+
+export interface VerifyPaymentPayload {
+  razorpay_order_id: string
+  razorpay_payment_id: string
+  razorpay_signature: string
+  target_tier: string
+}
+
+export interface BillingStatusResponse {
+  tier: string
+  status: string
+  current_period_end: string | null
+  razorpay_order_id: string | null
+  razorpay_payment_id: string | null
+}
+
+export interface AiQuotaResponse {
+  status: string
+  tier: string
+  used: number
+  limit: number
+  remaining: number
+}

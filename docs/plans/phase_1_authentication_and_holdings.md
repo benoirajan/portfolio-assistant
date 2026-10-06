@@ -3,7 +3,7 @@
 ---
 
 ## 1. Overview & Objectives
-Phase 1 establishes the core foundation of the Portfolio Assistant application. It delivers Zerodha Kite Connect OAuth 2.0 authentication, REST API data ingestion endpoints via FastAPI, and a real-time Streamlit dashboard with full support for both Live Demat syncing and a fallback Demo Mode.
+Phase 1 establishes the core foundation of the Portfolio Assistant application. It delivers Zerodha Kite Connect OAuth 2.0 authentication, REST API data ingestion endpoints via FastAPI, and a real-time Next.js frontend with full support for both Live Demat syncing and a fallback Demo Mode.
 
 > **Architecture decisions locked in Phase 1 (non-negotiable for later phases):**
 > - PostgreSQL + SQLAlchemy + Alembic is the database from day one. SQLite is not used.
@@ -19,7 +19,6 @@ Phase 1 establishes the core foundation of the Portfolio Assistant application. 
 - `fastapi` & `uvicorn`: High-performance asynchronous web framework and ASGI server.
 - `kiteconnect`: Official Python client for Zerodha Kite Connect API (v3).
 - `pandas` & `plotly`: Data frame processing and interactive charts for portfolio analytics.
-- `streamlit`: Rapid web application dashboard UI.
 - `python-dotenv` & `pydantic`: Environment configuration loading and schema validation.
 - `sqlalchemy` & `alembic`: ORM and database migration management (PostgreSQL from day one).
 - `psycopg2-binary`: PostgreSQL adapter for Python.
@@ -47,17 +46,11 @@ Implements official Kite Connect v3 endpoints:
 All methods are decorated with `@retry` from `tenacity` (exponential backoff, max 3 attempts) and guarded by a token-bucket rate limiter (max 3 req/sec).
 
 ### 2.4 FastAPI API Routes (`src/api/`)
-- `GET /health`: Backend health check — used by Streamlit UI on startup to verify connectivity.
+- `GET /health`: Backend health check — used by the frontend on startup to verify connectivity.
 - `GET /api/v1/auth/login-url`: Generates Zerodha OAuth URL.
 - `POST /api/v1/auth/callback`: Handles OAuth redirect token exchange.
 - `GET /api/v1/holdings`: Returns portfolio summary stats & enriched holdings list.
 - `GET /api/v1/margins`: Returns cash margin balances.
-
-### 2.5 Streamlit Dashboard UI (`src/ui/app.py`)
-- **Startup Health Check**: Calls `GET /health` on load. Displays a clear error banner if the backend is unreachable — no unhandled exceptions.
-- **Header KPI Cards**: Total Invested (₹), Current Value (₹), Overall P&L (₹ & %), Cash Balance (₹), Holdings Count.
-- **Holdings Table**: Sortable DataFrame with color-coded profit/loss indicators and symbol/sector search filters.
-- **Analytics Tab**: Sector breakdown pie chart & stock concentration risk bar chart with 15% threshold alerts.
 
 ### 2.6 Database Setup (`src/core/database.py` + `alembic/`)
 - PostgreSQL connection via SQLAlchemy engine.
@@ -78,6 +71,6 @@ All methods are decorated with `@retry` from `tenacity` (exponential backoff, ma
   - [ ] PostgreSQL schema created via Alembic migration (no SQLite).
   - [ ] `access_token` stored AES-encrypted in Redis, not in plaintext.
   - [ ] All Kite API calls retry on failure via `tenacity`.
-  - [ ] `GET /health` endpoint returns 200 and is checked by Streamlit on startup.
+  - [ ] `GET /health` endpoint returns 200 and is checked by the frontend on startup.
   - [ ] `structlog` emits structured JSON logs with `request_id` on all API requests.
   - [ ] `APScheduler` starts with FastAPI and registers the 5:30 AM re-auth reminder job.

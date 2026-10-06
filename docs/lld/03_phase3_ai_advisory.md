@@ -83,7 +83,7 @@ return {recommendations, rule_flags, source, investment_goal, llm_provider}
 | `confidence_score` | `float` | Must be in `[0.0, 1.0]`, rounded to 2dp |
 | `rationale` | `str` | Free text, 1-2 sentences |
 
-**`RecommendationList`** — full LLM response wrapper:
+**`Stage3Execution`** — full LLM response wrapper:
 
 | Validation | Rule |
 |---|---|
@@ -108,7 +108,7 @@ Rule engine flag details are appended as a plain-text summary list at the end of
 |---|---|
 | Client init | `genai.Client()` — SDK auto-resolves key from `os.environ` |
 | Model | `gemini-3.6-flash` |
-| Output mode | `response_mime_type="application/json"` + `response_schema=RecommendationList` |
+| Output mode | `response_mime_type="application/json"` + `response_schema=Stage3Execution` |
 | Temperature | `0.2` — low for deterministic financial output |
 | Max tokens | `2048` |
 | Retry | 3 attempts, **429 only** — full spec in [LLD 05 §5.1](./05_retry_and_fallback.md#51-gemini--429-only-retry) |
@@ -382,6 +382,69 @@ The official doc shows the SDK auto-resolves `GEMINI_API_KEY` from the environme
 | | Approach |
 |---|---|
 | Before | Manually stripped markdown fences from response text, then called `json.loads()` |
-| After | `types.GenerateContentConfig(response_mime_type="application/json", response_schema=RecommendationList)` — Gemini returns clean structured JSON natively, `model_validate_json(llm_raw)` called directly |
+| After | `types.GenerateContentConfig(response_mime_type="application/json", response_schema=Stage3Execution)` — Gemini returns clean structured JSON natively, `model_validate_json(llm_raw)` called directly |
 
-Using `response_schema` eliminates the fragile string manipulation entirely and guarantees the response conforms to the `RecommendationList` shape before it even reaches the application. See [Structured JSON Output example](../api-references/Gemini_api_doc.md#6-structured-json-output-pydantic).
+Using `response_schema` eliminates the fragile string manipulation entirely and guarantees the response conforms to the `Stage3Execution` shape before it even reaches the application. See [Structured JSON Output example](../api-references/Gemini_api_doc.md#6-structured-json-output-pydantic).
+
+---
+
+## 11. Exporting Baskets to Zerodha (`/orders/baskets`)
+
+The generated trade basket can be pushed directly into Zerodha Baskets without automated trade execution.
+
+### 11.1 Endpoints Added to `src/api/advisory.py`
+
+- `GET /api/v1/advisory/zerodha-baskets`: Fetches existing Zerodha baskets for dropdown selection.
+- `POST /api/v1/advisory/export-zerodha-basket`: Accepts basket name, optional basket ID, and items (`[{symbol, action, quantity}]`). Formats orders for NSE CNC MARKET trades and posts to Zerodha OMS `/orders/baskets`.
+
+### 11.2 Safety & Workflow
+
+1. **Non-Executing**: Uses Zerodha OMS Basket endpoints (`/orders/baskets`), never order placement endpoints (`/orders/regular`).
+2. **Manual Review**: Returns a direct link to `https://kite.zerodha.com/orders/baskets` where users review items and trigger manual execution when ready.
+
+---
+
+## 12. Multi-Stage 3-Pass AI Advisory Pipeline & Real-Time SSE Streaming
+
+### 12.1 Modular Stage Execution (`src/services/llm_advisor.py`)
+
+The pipeline is split into 3 independent, chained stage runners:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Stage 1: run_stage1_diagnosis()                             │
+│ • Deterministic Rule Engine evaluation (evaluate_rules)     │
+│ • Live financial news search (search_company_news)          │
+│ • Prompt 1 → Stage1Diagnosis (Quality, Weakness, Risks)     │
+└──────────────────────────────┬──────────────────────────────┘
+                               │ (stage1_data)
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│ Stage 2: run_stage2_screening()                             │
+│ • NSE Ticker Master verification                            │
+│ • Prompt 2 → Stage2Ranking (Conviction Matrix, Screener)    │
+└──────────────────────────────┬──────────────────────────────┘
+                               │ (stage2_data)
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│ Stage 3: run_stage3_execution()                             │
+│ • Live candidate price quotes                               │
+│ • Whole-share math, budget limits, cash buffer retention    │
+│ • Prompt 3 → Stage3Execution (Final Allocation Decision)    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 12.2 Real-Time SSE Streaming (`GET /api/v1/advisory/stream`)
+
+Instead of blocking across all 3 stages, `GET /api/v1/advisory/stream` streams Server-Sent Events incrementally in real-time as each stage executes:
+
+1. **Stage 1 Running**: `data: {"stage": 1, "status": "running", "message": "🔍 Stage 1: Auditing portfolio exposure & live market news..."}`
+2. **Stage 1 Complete**: `data: {"stage": 1, "status": "complete", "data": {...}, "message": "✅ Stage 1: Portfolio diagnosis complete"}`
+3. **Stage 2 Running**: `data: {"stage": 2, "status": "running", "message": "🔎 Stage 2: Screening Indian equity universe & ranking conviction..."}`
+4. **Stage 2 Complete**: `data: {"stage": 2, "status": "complete", "data": {...}, "message": "✅ Stage 2: Opportunity selection & conviction matrix complete"}`
+5. **Stage 3 Running**: `data: {"stage": 3, "status": "running", "message": "🧮 Stage 3: Calculating whole-share allocation, budget limits & cash buffer..."}`
+6. **Stage 3 Complete**: `data: {"stage": 3, "status": "complete", "data": {...}, "full_result": {...}, "message": "✅ Stage 3: Execution decision complete!"}`
+
+### 12.3 Frontend Incremental Ingestion (`AdvisoryTab.tsx`)
+- The Next.js frontend listens to the `EventSource` stream and immediately renders intermediate results as each stage finishes.
+- The interactive stepper progress bar dynamically updates (`Stage 1 of 3` ➔ `Stage 2 of 3` ➔ `Stage 3 of 3`).
