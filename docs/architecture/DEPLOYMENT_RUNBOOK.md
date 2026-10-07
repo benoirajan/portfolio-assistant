@@ -6,8 +6,10 @@ This operations runbook provides step-by-step instructions for provisioning and 
 
 ## 1. Architecture Overview
 
-- **Backend:** Python FastAPI container deployed to **GCP Cloud Run** (`asia-south1`, Mumbai) with zero-downtime rolling updates.
-- **Frontend:** Next.js 14 App Router deployed globally to **Vercel Edge Network**.
+- **Backend API:** Python FastAPI container deployed to **GCP Cloud Run** (`asia-south1`, Mumbai) with zero-downtime rolling updates:
+  - **Live Endpoint:** `https://portfolio-assistant-api-njcmv33m6q-el.a.run.app`
+- **Frontend App:** Next.js 14 App Router deployed globally to **Vercel Edge Network**:
+  - **Live URL:** `https://portfolio-assistant-rouge.vercel.app`
 - **Container Registry:** **GCP Artifact Registry** (`asia-south1-docker.pkg.dev`).
 - **CI/CD Orchestration:** **GitHub Actions** (`.github/workflows/ci.yml` & `.github/workflows/deploy.yml`).
 
@@ -100,7 +102,7 @@ Add the following secrets:
 | `ENCRYPTION_SECRET_KEY` | 32-byte URL-safe base64 Fernet key | Generate with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
 | `GOOGLE_CLIENT_ID` | Google IAM OAuth 2.0 Web Client ID | From GCP Console -> Credentials |
 | `GOOGLE_CLIENT_SECRET` | Google IAM OAuth 2.0 Client Secret | From GCP Console -> Credentials |
-| `ALLOWED_ORIGINS` | *(Optional)* Comma-separated allowed frontend origins | `https://portfolio-assistant.vercel.app,http://localhost:3000` |
+| `ALLOWED_ORIGINS` | *(Optional)* Comma-separated allowed frontend origins | `https://portfolio-assistant-rouge.vercel.app,http://localhost:3000` |
 
 ---
 
@@ -117,34 +119,57 @@ Under the **Environment Variables** tab, add:
 
 | Variable Name | Value | Purpose |
 |---|---|---|
-| `NEXT_PUBLIC_API_URL` | `https://portfolio-assistant-api-xyz-el.a.run.app` | Cloud Run backend API URL |
+| `NEXT_PUBLIC_API_URL` | `https://portfolio-assistant-api-njcmv33m6q-el.a.run.app` | Cloud Run backend API URL |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | `[YOUR_CLIENT_ID].apps.googleusercontent.com` | Google OAuth Web Client ID |
 
 Click **Deploy**.
 
 ---
 
-## 5. Automated CI/CD Workflow Operations
+## 5. Production Approval Gate Setup (GitHub Environments)
 
-### 5.1 Quality Gates on Pull Requests (`ci.yml`)
+To prevent accidental deployments and require manual sign-off before code reaches Google Cloud Run:
+
+1. In your GitHub repository, navigate to:
+   **Settings** -> **Environments** (under *Code and automation*).
+2. Click **New environment** and enter the name:
+   `production`
+3. Under **Deployment protection rules**, select:
+   - ✅ **Required reviewers**: Check this and add your GitHub username (or team).
+4. Click **Save protection rules**.
+
+### How the Approval Gate Works:
+- When changes are pushed to `main` (or triggered manually via `workflow_dispatch`):
+  1. `test-backend` (49 tests) and `test-frontend` (`npm run build`) run first in parallel.
+  2. The workflow **pauses** at `deploy-backend` with the status: **Waiting for review**.
+  3. You (and any configured reviewers) receive a notification and can review the run details.
+  4. Click **Review deployments** -> select **production** -> click **Approve and deploy**.
+  5. The job proceeds to build the Docker image, push to Artifact Registry, deploy to Cloud Run, and verify `/health`.
+
+---
+
+## 6. Automated CI/CD Workflow Operations
+
+### 6.1 Quality Gates on Pull Requests (`ci.yml`)
 When opening a pull request to `main`:
 1. **Backend:** Runs all unit tests (`python -m unittest discover -s backend/tests -p "test_*.py"`).
 2. **Frontend:** Runs `npm run lint` and Next.js production build (`npm run build`).
 
-### 5.2 Production Release on Merge to `main` (`deploy.yml`)
+### 6.2 Production Release on Merge to `main` (`deploy.yml`)
 When code merges or is pushed to `main`:
 1. **Quality Gates:** Unit tests and build checks run automatically.
-2. **Backend CD:**
+2. **Approval Gate:** The pipeline pauses at `deploy-backend` waiting for manual reviewer approval.
+3. **Backend CD (Post-Approval):**
    - Docker image is built using multi-stage caching.
    - Image is pushed to `asia-south1-docker.pkg.dev/<PROJECT_ID>/portfolio-assistant/backend:<SHA>`.
    - Cloud Run service `portfolio-assistant-api` is updated with zero downtime.
    - Workflow executes automated `/health` probe verification with retries.
-3. **Frontend CD:**
+4. **Frontend CD:**
    - Vercel automatically deploys the updated Next.js frontend to its global edge CDN.
 
 ---
 
-## 6. Monitoring, Logs & Zero-Downtime Rollbacks
+## 7. Monitoring, Logs & Zero-Downtime Rollbacks
 
 ### 6.1 View Live Cloud Run Logs
 ```bash
