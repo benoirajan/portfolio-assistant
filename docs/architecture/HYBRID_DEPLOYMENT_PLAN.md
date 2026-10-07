@@ -58,11 +58,11 @@ flowchart LR
 ## 3. Component Deployment Blueprint
 
 ### A. Next.js Frontend on Vercel
+- **Production URL**: `https://portfolio-assistant-rouge.vercel.app`
 - **Repository Link**: Connect GitHub repository root directory `frontend/`.
 - **Environment Variables**:
-  - `NEXT_PUBLIC_API_BASE_URL`: Point to GCP Cloud Run URL (`https://portfolio-backend-xyz-uc.a.run.app`).
-  - `NEXT_PUBLIC_SUPABASE_URL`: Supabase project URL.
-  - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Supabase public anon key.
+  - `NEXT_PUBLIC_API_URL`: Point to GCP Cloud Run URL (`https://portfolio-assistant-api-njcmv33m6q-el.a.run.app`).
+  - `NEXT_PUBLIC_GOOGLE_CLIENT_ID`: Google OAuth Web Client ID.
 - **CI/CD Integration**: Vercel automatically deploys preview environments for pull requests and updates production instantly on `git push origin main`.
 
 ### B. FastAPI Container Backend on GCP Cloud Run
@@ -110,7 +110,9 @@ gcloud run deploy portfolio-assistant-api \
 ```mermaid
 flowchart TD
     PUSH["Git Push to main branch"] --> BUILD_TEST["Run Pytest & ESLint"]
-    BUILD_TEST --> PARALLEL{"Deploy Pipelines"}
+    BUILD_TEST --> GATE{"Manual Approval Gate (production environment)"}
+    
+    GATE -->|Approved| PARALLEL{"Deploy Pipelines"}
     
     PARALLEL -->|Frontend| VERCEL_DEPLOY["Vercel Auto-Deploy Next.js App"]
     PARALLEL -->|Backend| GCP_BUILD["Build Docker Image on GCP Artifact Registry"]

@@ -96,6 +96,12 @@ npm run dev
 - Frontend: http://localhost:3000
 - Redis Cache Server: `redis://localhost:6379/0`
 
+### 🌐 Live Production Deployment
+- **Frontend App:** [https://portfolio-assistant-rouge.vercel.app](https://portfolio-assistant-rouge.vercel.app)
+- **Backend API (GCP Cloud Run):** [https://portfolio-assistant-api-njcmv33m6q-el.a.run.app](https://portfolio-assistant-api-njcmv33m6q-el.a.run.app)
+- **API Swagger Documentation:** [https://portfolio-assistant-api-njcmv33m6q-el.a.run.app/docs](https://portfolio-assistant-api-njcmv33m6q-el.a.run.app/docs)
+- **Architecture & CI/CD Guide:** [Deployment Runbook](./docs/architecture/DEPLOYMENT_RUNBOOK.md)
+
 
 ---
 
