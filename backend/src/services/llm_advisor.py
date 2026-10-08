@@ -464,7 +464,7 @@ def run_stage1_diagnosis(
     news_items = []
     for sym in top_symbols:
         news_items.extend(search_company_news(sym, count=2))
-    news_text = chr(10).join(f"- [{item['source']}] {item['title']}: {item['snippet']}" for item in news_items)
+    news_text = chr(10).join(f"- [{item['source']}] {item['title']}" for item in news_items)
 
     llm_provider = None
     source = "rule_engine"

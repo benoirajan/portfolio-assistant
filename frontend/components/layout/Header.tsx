@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import type { AiQuotaResponse } from '@/lib/types'
 import PricingModal from '@/components/billing/PricingModal'
+import ThemeToggle from './ThemeToggle'
 
 export default function Header() {
   const [online, setOnline] = useState<boolean | null>(null)
@@ -40,7 +41,7 @@ export default function Header() {
   }, [loadQuota, user?.tier])
 
   const handleUpgradeSuccess = useCallback(
-    async (newTier: string) => {
+    async (_newTier: string) => {
       await refreshUser()
       await loadQuota()
     },
@@ -83,6 +84,9 @@ export default function Header() {
             )}
           </div>
 
+          {/* Theme switcher */}
+          <ThemeToggle />
+
           {isAuthenticated && user ? (
             <div className="flex items-center gap-2">
               {/* AI Quota pill (only shown when quota data is available) */}
@@ -91,7 +95,7 @@ export default function Header() {
                   title={`${quota.used} of ${quota.limit === 9999 ? '∞' : quota.limit} AI runs used this month`}
                   className="hidden md:flex items-center gap-1 px-2.5 py-1 rounded-full bg-[var(--bg)] border border-[var(--border)] text-[10px] text-[var(--muted)] cursor-default select-none"
                 >
-                  <Sparkles size={11} className="text-amber-400" />
+                  <Sparkles size={11} className="text-amber-500 dark:text-amber-400" />
                   <span>
                     {quota.used}/{quota.limit === 9999 ? '∞' : quota.limit} AI
                   </span>
@@ -102,7 +106,7 @@ export default function Header() {
               {showUpgradeBtn && (
                 <button
                   onClick={() => setIsPricingOpen(true)}
-                  className="hidden sm:flex items-center gap-1 px-2.5 py-1 text-[10px] font-semibold text-amber-400 border border-amber-400/40 rounded-full hover:bg-amber-400/10 transition-colors cursor-pointer"
+                  className="hidden sm:flex items-center gap-1 px-2.5 py-1 text-[10px] font-semibold text-amber-600 dark:text-amber-400 border border-amber-500/40 rounded-full hover:bg-amber-500/10 transition-colors cursor-pointer"
                 >
                   <ArrowUpCircle size={12} />
                   Upgrade
@@ -122,9 +126,9 @@ export default function Header() {
                     <span
                       className={`text-[9px] font-semibold uppercase tracking-wider ${
                         currentTier === 'ELITE'
-                          ? 'text-purple-400'
+                          ? 'text-purple-600 dark:text-purple-400'
                           : currentTier === 'PRO'
-                          ? 'text-amber-400'
+                          ? 'text-amber-600 dark:text-amber-400'
                           : 'text-[var(--blue)]'
                       }`}
                     >

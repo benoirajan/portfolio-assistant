@@ -59,16 +59,25 @@ All hooks use `staleTime: 5 * 60 * 1000` (5 minutes) matching the previous `@st.
 ## 4. `frontend/app/layout.tsx` — Root Layout
 
 - Marked `'use client'` to allow `useState` for `QueryClient` instantiation
-- Wraps all children in `QueryClientProvider`
-- Imports `globals.css` with CSS custom properties for the dark theme
+- Wraps application tree in `ThemeProvider` (`next-themes`) supporting `light`, `dark`, and `system` preferences with `attribute="class"`
+- Wraps all children in `QueryClientProvider` and `AuthProvider`
+- Imports `globals.css` with CSS custom properties for both light and dark themes
 
 ---
 
-## 5. `frontend/components/layout/Header.tsx`
+## 5. `frontend/components/layout/Header.tsx` & `ThemeToggle.tsx`
 
 - Calls `checkHealth()` on mount via `useEffect`
-- Shows green "Backend online" or red "Backend offline — run uvicorn" status indicator
-- No props — self-contained
+- Shows green "Online" or red "Offline" backend health pill
+- Features `ThemeToggle.tsx`:
+  - 3-mode theme switcher supporting Light, Dark, and System preference
+  - Distinct icons for each mode: `Sun` (Light), `Moon` (Dark), `Monitor` (System)
+  - Interactive dropdown menu with checkmark indicating active state
+  - Automatically respects user OS preference when set to `system`
+  - Zero hydration flash with `suppressHydrationWarning` and mounted state guard
+- Displays AI Quota pill and tier badge with responsive styling
+- Sign In modal trigger / Sign Out button with user avatar
+
 
 ---
 

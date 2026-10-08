@@ -448,3 +448,6 @@ Instead of blocking across all 3 stages, `GET /api/v1/advisory/stream` streams S
 ### 12.3 Frontend Incremental Ingestion (`AdvisoryTab.tsx`)
 - The Next.js frontend listens to the `EventSource` stream and immediately renders intermediate results as each stage finishes.
 - The interactive stepper progress bar dynamically updates (`Stage 1 of 3` ➔ `Stage 2 of 3` ➔ `Stage 3 of 3`).
+
+### 12.4 News Context Grounding & Clean Formatting
+In Stage 1 diagnosis, `search_company_news` queries Google News RSS for top holdings. To optimize token usage and avoid redundant context duplication, `news_text` formats articles cleanly as `- [{source}] {title}` (omitting redundant snippet strings that duplicate the title).
