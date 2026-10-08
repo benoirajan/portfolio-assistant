@@ -1,74 +1,11 @@
 # Action Items & TODO Tasks
-## 📋 Upcoming TODO Tasks
 
-### 1. 🗄️ Container-Ready Free Database Persistence (Priority: P0 - Infrastructure & State) — [COMPLETED ✅]
-* **Architectural Rationale:** Foundational database layer. Containerized environments (Docker, Railway, Render, Fly.io) are ephemeral; storing portfolio data in local JSON files causes state loss across container restarts and redeployments. A free database (Managed Supabase PostgreSQL with SQLAlchemy 2.0 and Alembic migrations) provides durable, production-ready persistence.
-* **Objective:** Replace file-based local storage with a managed cloud relational database (PostgreSQL / Supabase).
-* **Implementation Status:**
-  * ✅ SQLAlchemy 2.0 declarative base (`src/db/base.py`) & resilient session pool (`src/db/session.py`) with Supabase pooler compatibility.
-  * ✅ Core ORM models defined in `src/models/` (`User`, `Portfolio`, `UserHolding`, `UserSession`).
-  * ✅ Alembic version-controlled migrations initialized (`alembic/versions/0001_initial_schema.py`).
-  * ✅ Refactored `src/services/portfolio_repository.py` to persist and re-hydrate holdings through database queries with self-healing file fallback.
-  * ✅ Automated pre-boot testing script `backend/run_dev.sh` and 10 comprehensive tests in `backend/tests/test_portfolio.py`.
-  * 📖 Documented in [LLD 09](../lld/09_database_persistence.md).
+> Historical completed tasks have been archived and documented in [Completed Tasks Archive](./completed_tasks.md).
 
----
+## 📋 Active & Upcoming TODO Tasks
 
-### 2. 🔐 Multi-Tenant Authentication & Session Management (Priority: P0 - Security & Identity) — [COMPLETED ✅]
-* **Architectural Rationale:** Security prerequisite for public hosting. Before hosting the application publicly, multi-user isolation is mandatory so that users access only their own portfolios and broker credentials. Sensitive tokens (Zerodha enctoken, API keys) must be encrypted at rest.
-* **Objective:** Implement full authentication and user identity across backend and frontend with Google IAM / OAuth 2.0 and JWT.
-* **Implementation Status:**
-  * ✅ Security engine (`src/core/security.py`) supporting PBKDF2-HMAC-SHA256 password hashing, Fernet AES-256 broker token encryption, HS256 JWT generation, and Google IAM ID token verification via `google-auth`.
-  * ✅ FastAPI auth routes in `src/api/auth.py` (`/api/v1/auth/google`, `/api/v1/auth/register`, `/api/v1/auth/login`, `/api/v1/auth/me`, `/api/v1/auth/broker/enctoken`, `/api/v1/auth/broker/status`, `/api/v1/auth/broker/disconnect`).
-  * ✅ Strict multi-tenant isolation across `/api/v1/holdings`, `/api/v1/advisory/*`, `/api/v1/analytics/*`, scoping database queries, holdings, and cache keys by `user_id`. (Legacy Demo Mode deprecated).
-  * ✅ Next.js AuthContext (`frontend/lib/auth-context.tsx`), Axios Bearer token interceptor (`frontend/lib/api.ts`), interactive Google + Email modal (`AuthModal.tsx`), and dynamic user profile/tier header (`Header.tsx`).
-  * ✅ Full test coverage with 28 passing unit & integration tests (`tests/test_auth.py`, `tests/test_security.py`, `tests/test_portfolio.py`) and clean Next.js production build.
-  * 📖 Documented in [LLD 10](../lld/10_multi_tenant_auth.md).
-
----
-
-
-### 3. 💳 SaaS Monetization, Tier Gating & Payment Strategy (Priority: P1 - Monetization) — [COMPLETED ✅]
-* **Architectural Rationale:** Commercial sustainability and API cost control. Advanced features (unlimited Gemini AI multi-stage advisory, automated tax-loss harvesting, 1-click execution) incur compute and LLM token costs. Gating these behind a freemium model with payment processing ensures viable unit economics.
-* **Objective:** Set up tiered monetization, subscription management, payment processing, and usage quotas.
-* **Implementation Status:**
-  * ✅ Subscription tiers defined: **Free** (rule-based advisory, 1 broker, 3 AI runs/mo), **Pro** (₹299/mo: 50 AI reviews, tax harvesting), **Elite** (₹799/mo: unlimited AI, priority alerts).
-  * ✅ `Subscription` ORM model (`src/models/subscription.py`) with Razorpay IDs, billing period, webhook idempotency key.
-  * ✅ Alembic migration `0002_add_subscriptions_table.py` — adds `subscriptions` table with FK cascade on `users`.
-  * ✅ Entitlement middleware (`src/core/entitlements.py`) — `require_tier()` factory and `check_and_consume_ai_quota()` dependency.
-  * ✅ Billing API (`src/api/billing.py`) — `/api/v1/billing/plans`, `/create-order`, `/verify-payment`, `/status`, `/quota`, `/webhook`.
-  * ✅ Razorpay **mock mode** (`RAZORPAY_MOCK_MODE=true`) — full flow works without a live account; set to `false` once keys are provisioned.
-  * ✅ `/api/v1/advisory/pipeline` and `/api/v1/advisory/stream` gated with `check_and_consume_ai_quota`.
-  * ✅ `/api/v1/analytics/tax-harvesting` gated with `require_tier("PRO")`.
-  * ✅ Next.js `PricingModal.tsx` — three tier cards, mock/live Razorpay checkout, upgrade flow.
-  * ✅ `Header.tsx` updated with AI quota pill, Upgrade button, and tier-coloured badge.
-  * ✅ `frontend/lib/api.ts` + `types.ts` — billing API client functions and TypeScript interfaces.
-  * ✅ 16 unit tests in `backend/tests/test_billing.py`.
-  * ⚠️ **Multi-broker entitlement** is a placeholder in `TIER_DEFINITIONS` (see Task 7 below).
-  * ⚠️ **Live Razorpay keys** not yet integrated (see Task 6 below).
-
----
-
-### 4. 📰 Fix Redundancy in News Fetch (Priority: P2 - AI Context Quality)
-* **Architectural Rationale:** The Google News RSS fetcher currently duplicates the headline text for each snippet (due to mapping both `title` and `snippet` to the article title), making the LLM prompt unnecessarily repetitive.
-* **Objective:** Clean up the news text injection in the AI Advisory prompt.
-* **Details:**
-  * Refactor the format string in `backend/src/services/llm_advisor.py` where `news_text` is constructed.
-  * Remove the duplicate `snippet` injection so the prompt lists only `[Source - Date] Headline`.
-
----
-
-### 5. 🎨 Update UI Theme System (Priority: P2 - UI/UX)
-* **Architectural Rationale:** The frontend theme toggle (the "N" button) should support standard modern web paradigms (Light, Dark, and System preference) for better accessibility and user experience.
-* **Objective:** Ensure the Next.js theme provider supports three-way toggling.
-* **Details:**
-  * Configure `next-themes` (or the equivalent context provider) to recognize and handle `system` preference alongside `light` and `dark`.
-  * Update the "N" toggle button component to correctly cycle through these three states or present a dropdown menu.
-
----
-
-### 6. 💳 Integrate Live Razorpay Keys & Recurring Subscriptions (Priority: P1 - Monetization Follow-up)
-* **Architectural Rationale:** Task 3 implemented billing with `RAZORPAY_MOCK_MODE=true`. To take real payments, live Razorpay credentials must be provisioned and the `PricingModal.tsx` Razorpay checkout widget must be verified end-to-end.
+### 1. 💳 Integrate Live Razorpay Keys & Recurring Subscriptions (Priority: P1 - Monetization Follow-up)
+* **Architectural Rationale:** Billing was implemented with `RAZORPAY_MOCK_MODE=true` (see [LLD 11](../lld/11_saas_monetization.md)). To take real payments, live Razorpay credentials must be provisioned and the `PricingModal.tsx` Razorpay checkout widget must be verified end-to-end.
 * **Objective:** Switch from mock mode to live Razorpay payment processing.
 * **Details:**
   * Create a Razorpay account at [dashboard.razorpay.com](https://dashboard.razorpay.com) and obtain `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET`.
@@ -79,11 +16,54 @@
 
 ---
 
-### 7. 🔗 Multi-Broker Entitlement Support (Priority: P2 - Monetization)
-* **Architectural Rationale:** Task 3 defined `PRO` as allowing "multi-broker" connections. Currently only Zerodha is integrated. This task adds the entitlement check as a gating placeholder and implements support for a second broker.
+### 2. 🔗 Multi-Broker Entitlement Support (Priority: P2 - Monetization)
+* **Architectural Rationale:** `PRO` tier allows "multi-broker" connections. Currently only Zerodha is integrated. This task adds the entitlement check as a gating placeholder and implements support for a second broker.
 * **Objective:** Allow PRO/ELITE users to connect more than one broker account.
 * **Details:**
-  * Add a `MAX_BROKER_CONNECTIONS` entitlement check in the broker session management logic (currently `src/api/auth.py` `/broker/enctoken`).
+  * Add a `MAX_BROKER_CONNECTIONS` entitlement check in the broker session management logic (`backend/src/api/auth.py` `/broker/enctoken`).
   * FREE users: 1 broker connection. PRO/ELITE: unlimited.
   * Implement a second broker adapter (e.g., Angel One or Groww) as a concrete integration alongside the existing `zerodha_client.py`.
-  * The `TIER_DEFINITIONS` list in `src/api/billing.py` already shows "1 broker" for FREE — update once the second broker is implemented.
+  * The `TIER_DEFINITIONS` list in `backend/src/api/billing.py` already shows "1 broker" for FREE — update once the second broker is implemented.
+
+---
+
+### 3. 📱 Mobile UI Responsiveness & Tab Fixes (Performance & Tax Tabs) (Priority: P2 - UI/UX)
+* **Architectural Rationale:** The application layout currently renders for desktop screens and needs dedicated viewport adaptations for mobile phone viewports (< 640px). In addition, the **Performance** and **Tax** tabs contain functional, gating, and rendering issues:
+  * **Performance Tab:** Brittle layout with hardcoded negative margins (`mt-[-2rem]`) causing text overlap in the Beta radial gauge; unguarded `.toFixed()` calls that can throw runtime errors on missing/null metrics; and lack of responsive chart scaling.
+  * **Tax Tab:** `/api/v1/analytics/tax-harvesting` is gated behind the `PRO` tier (`require_tier("PRO")`). Free users receiving a 403 Forbidden currently see an unhandled empty/broken view instead of an informative upgrade banner; unguarded `.toLocaleString()` calls risk throwing errors on undefined values; and the harvestable loss table overflows on mobile viewports.
+* **Objective:** Make all dashboard views mobile-responsive, fix rendering and calculation bugs in the Performance tab, and handle PRO gating and formatting safely in the Tax tab.
+* **Details:**
+  * **Mobile Navigation & Layout:**
+    * Add a collapsible mobile drawer / slide-out hamburger navigation for [`Sidebar.tsx`](../frontend/components/layout/Sidebar.tsx) with a backdrop overlay.
+    * Refactor [`KpiBar.tsx`](../frontend/components/kpi/KpiBar.tsx) cards into a responsive 2-column mobile grid or swipeable row.
+    * Audit dialogs ([`AuthModal.tsx`](../frontend/components/auth/AuthModal.tsx), [`PricingModal.tsx`](../frontend/components/billing/PricingModal.tsx), [`ThemeToggle.tsx`](../frontend/components/layout/ThemeToggle.tsx)) to ensure zero clipping on screens under 380px.
+  * **Performance Tab Fixes ([`PerformanceTab.tsx`](../frontend/components/tabs/PerformanceTab.tsx)):**
+    * Replace brittle negative margin overlap in the RadialBar gauge with a responsive, centered SVG gauge or clean arc indicator that scales smoothly on mobile and desktop.
+    * Add defensive null/undefined guards (`(metrics?.xirr_percentage ?? 0).toFixed(2)`, etc.) to prevent component crashes on initial or incomplete portfolio states.
+    * Optimize valuation matrix and metric cards for single-column mobile viewports.
+  * **Tax Tab Fixes ([`TaxTab.tsx`](../frontend/components/tabs/TaxTab.tsx)):**
+    * Handle `PRO` tier gating gracefully: if user is on `FREE` tier or `/api/v1/analytics/tax-harvesting` returns 403, render an elegant locked feature card with sample preview and direct "Upgrade to Pro" trigger to [`PricingModal.tsx`](../frontend/components/billing/PricingModal.tsx).
+    * Guard all currency and number fields against null/undefined (`(tax?.net_stcg ?? 0).toLocaleString(...)`).
+    * Add responsive card / horizontal touch scroll for the harvestable loss candidate table on small screens.
+
+
+---
+
+### 4. 🌐 Public Marketing Landing Page & Product Showcase (Priority: P2 - Acquisition & UX)
+* **Architectural Rationale:** The root route `/` (`frontend/app/page.tsx`) currently executes an immediate redirect to `/dashboard`, directly facing unauthenticated visitors with an "Authentication Required" lock screen. A dedicated, high-conversion landing page is needed to introduce the platform, showcase core value propositions (Multi-Stage Gemini AI Advisory, Zerodha sync, Tax Harvesting, Quantitative Analytics), present SaaS pricing tiers, and convert first-time visitors into registered users.
+* **Objective:** Design and build a stunning, responsive landing page at `/` with compelling product visuals, feature sections, interactive pricing preview, and clear CTAs.
+* **Details:**
+  * Replace the unconditional redirect in [`frontend/app/page.tsx`](../frontend/app/page.tsx) with a full public marketing experience.
+  * **Hero Section:** Value proposition ("Institutional-grade Indian equity portfolio analytics powered by multi-tenant AI"), dynamic animated badges, and dual primary CTAs ("Get Started Free", "Explore Dashboard").
+  * **Feature Grid:** Highlight the 4 pillars:
+    * 🤖 **3-Stage Gemini AI Advisory:** Diagnostic health checks, risk ranking, and staged execution baskets.
+    * ⚖️ **Indian Tax-Loss Harvesting:** Real-time STCG/LTCG capital gains computation and tax-saving trade discovery before March 31st.
+    * 🔒 **Encrypted Broker Integration:** Zero-friction Zerodha Kite & Enctoken synchronization with Fernet AES-256 encryption at rest.
+    * 📊 **Institutional Quantitative Metrics:** Portfolio Beta, Sharpe/Sortino ratios, Herfindahl concentration index, and sector rebalancing.
+  * **Interactive Product Preview:** Sleek mock dashboard UI / screenshot component showcasing the dashboard interface.
+  * **Pricing & SaaS Tiers:** Display the Free, Pro (₹299/mo), and Elite (₹799/mo) plan tiers with a direct trigger to [`PricingModal.tsx`](../frontend/components/billing/PricingModal.tsx).
+  * **Public Header & Footer:** Streamlined navbar with brand logo, [`ThemeToggle.tsx`](../frontend/components/layout/ThemeToggle.tsx), "Sign In" button, and footer with legal/security guarantees.
+  * If the user is already authenticated, provide a seamless "Go to Dashboard" button or banner.
+
+
+

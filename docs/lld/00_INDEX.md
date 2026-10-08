@@ -18,6 +18,7 @@
 | 8 | [08_cache_layer.md](./08_cache_layer.md) | Cross-cutting | Redis cache client, key conventions, TTLs, graceful degradation, token security |
 | 9 | [09_database_persistence.md](./09_database_persistence.md) | Phase 6 & P0 | Managed Supabase PostgreSQL, SQLAlchemy 2.0 ORM, Alembic migrations, test pipeline |
 | 10 | [10_multi_tenant_auth.md](./10_multi_tenant_auth.md) | Phase 6 & P0 | Multi-tenant auth, Google IAM, PBKDF2 passwords, Fernet AES-256 broker encryption, SSE auth |
+| 11 | [11_saas_monetization.md](./11_saas_monetization.md) | Phase 7 & P1 | SaaS monetization, tier gating, Razorpay integration, Redis AI quota rate limiting |
 
 ---
 
@@ -52,7 +53,9 @@
 | `frontend/lib/api.ts` | [LLD 07 §2](./07_phase5_react_frontend.md#2-frontendlibapits--axios-client--api-functions) — adds `createBasket(recommendations, budget)` |
 | `frontend/hooks/usePortfolio.ts` | [LLD 07 §3](./07_phase5_react_frontend.md#3-frontendhooksuseportfoliots--react-query-hooks) |
 | `frontend/app/layout.tsx` | [LLD 07 §4](./07_phase5_react_frontend.md#4-frontendapplayouttsx--root-layout) |
-| `frontend/components/layout/Header.tsx` | [LLD 07 §5](./07_phase5_react_frontend.md#5-frontendcomponentslayoutheadertsx) |
+| `frontend/components/theme/ThemeProvider.tsx` | [LLD 07 §4](./07_phase5_react_frontend.md#4-frontendapplayouttsx--root-layout) |
+| `frontend/components/layout/Header.tsx` | [LLD 07 §5](./07_phase5_react_frontend.md#5-frontendcomponentslayoutheadertsx--themetoggletsx) |
+| `frontend/components/layout/ThemeToggle.tsx` | [LLD 07 §5](./07_phase5_react_frontend.md#5-frontendcomponentslayoutheadertsx--themetoggletsx) |
 | `frontend/components/layout/Sidebar.tsx` | [LLD 07 §6](./07_phase5_react_frontend.md#6-frontendcomponentslayoutsidebartsx) |
 | `frontend/components/kpi/KpiBar.tsx` | [LLD 07 §7](./07_phase5_react_frontend.md#7-frontendcomponentskpikpibartsx) |
 | `frontend/components/tabs/HoldingsTab.tsx` | [LLD 07 §8](./07_phase5_react_frontend.md#8-frontendcomponentstabsholdingstabtsx) |
