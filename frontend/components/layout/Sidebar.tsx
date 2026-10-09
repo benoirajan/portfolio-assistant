@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { fetchLoginUrl } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import type { ConnectionMode } from '@/lib/types'
-import { Settings, Key, Zap, CheckCircle2, AlertTriangle, ShieldCheck, LogIn, Trash2 } from 'lucide-react'
+import { Settings, Key, Zap, CheckCircle2, AlertTriangle, ShieldCheck, LogIn, Trash2, X, PanelLeftClose } from 'lucide-react'
 
 interface Props {
   mode: ConnectionMode
@@ -17,6 +17,10 @@ interface Props {
   onInvestmentGoalChange: (v: string) => void
   maxStockCap: number
   onMaxStockCapChange: (v: number) => void
+  isCollapsed?: boolean
+  onToggleCollapse?: () => void
+  isOpenMobile?: boolean
+  onCloseMobile?: () => void
 }
 
 function SliderWithInput({
@@ -37,7 +41,7 @@ function SliderWithInput({
       <input
         type="range" min={min} max={max} value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="flex-1 accent-[var(--blue)]"
+        className="flex-1 accent-[var(--blue)] cursor-pointer"
       />
       <input
         type="number" min={min} max={max} value={draft}
@@ -63,6 +67,10 @@ export default function Sidebar({
   maxSectorCap, onMaxSectorCapChange,
   investmentGoal, onInvestmentGoalChange,
   maxStockCap, onMaxStockCapChange,
+  isCollapsed = false,
+  onToggleCollapse,
+  isOpenMobile = false,
+  onCloseMobile,
 }: Props) {
   const { isAuthenticated, brokerStatus, saveEnctoken, disconnectBrokerSession, openAuthModal } = useAuth()
   const [enctokenInput, setEnctokenInput] = useState('')
@@ -92,8 +100,21 @@ export default function Sidebar({
     }
   }
 
-  return (
-    <aside className="w-64 shrink-0 border-r border-[var(--border)] p-4 flex flex-col gap-5 overflow-y-auto bg-[var(--surface)]">
+  const renderContent = (isMobile = false) => (
+    <>
+      {isMobile && (
+        <div className="flex items-center justify-between pb-3 border-b border-[var(--border)]">
+          <span className="font-bold text-sm text-[var(--text)]">Controls & Configuration</span>
+          <button
+            onClick={onCloseMobile}
+            className="p-1.5 rounded-lg text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)] transition-colors cursor-pointer"
+            aria-label="Close sidebar"
+          >
+            <X size={18} />
+          </button>
+        </div>
+      )}
+
       {/* Broker Session & Multi-Tenancy */}
       <div>
         <p className="text-xs text-[var(--muted)] uppercase tracking-wider mb-2 flex items-center justify-between">
@@ -107,7 +128,10 @@ export default function Sidebar({
               Sign in to sync your private portfolio and encrypt broker credentials.
             </p>
             <button
-              onClick={openAuthModal}
+              onClick={() => {
+                if (isMobile && onCloseMobile) onCloseMobile()
+                openAuthModal()
+              }}
               className="w-full flex items-center justify-center gap-1.5 py-2 bg-[var(--blue)] text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-opacity cursor-pointer"
             >
               <LogIn size={13} /> Sign In
@@ -118,7 +142,7 @@ export default function Sidebar({
             {brokerStatus?.has_enctoken ? (
               <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-semibold">
+                  <div className="flex items-center gap-1.5 text-xs text-emerald-500 font-semibold">
                     <CheckCircle2 size={15} />
                     <span>Zerodha Connected</span>
                   </div>
@@ -135,7 +159,7 @@ export default function Sidebar({
                 </p>
               </div>
             ) : (
-              <div className="p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center gap-2 text-xs text-amber-400">
+              <div className="p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center gap-2 text-xs text-amber-500">
                 <AlertTriangle size={15} className="shrink-0" />
                 <span>No broker credentials saved yet.</span>
               </div>
@@ -223,6 +247,43 @@ export default function Sidebar({
         <label className="text-xs text-[var(--muted)] mt-3 block">Max single stock (%)</label>
         <SliderWithInput min={5} max={50} value={maxStockCap} onChange={onMaxStockCapChange} />
       </div>
-    </aside>
+    </>
+  )
+
+  return (
+    <>
+      {/* Desktop Sticky/Fixed Sidebar (Collapsible) */}
+      {!isCollapsed && (
+        <aside className="hidden md:flex w-64 shrink-0 border-r border-[var(--border)] p-4 flex-col gap-5 overflow-y-auto bg-[var(--surface)] transition-all animate-in fade-in duration-150">
+          <div className="flex items-center justify-between pb-2 border-b border-[var(--border)]">
+            <span className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Configuration</span>
+            {onToggleCollapse && (
+              <button
+                onClick={onToggleCollapse}
+                className="p-1 rounded-lg text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)] transition-colors cursor-pointer"
+                title="Collapse sidebar"
+                aria-label="Collapse sidebar"
+              >
+                <PanelLeftClose size={15} />
+              </button>
+            )}
+          </div>
+          {renderContent(false)}
+        </aside>
+      )}
+
+      {/* Mobile Slide-Out Drawer */}
+      {isOpenMobile && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 md:hidden animate-in fade-in duration-200"
+            onClick={onCloseMobile}
+          />
+          <aside className="fixed inset-y-0 left-0 w-72 max-w-[85vw] bg-[var(--surface)] z-50 p-4 flex flex-col gap-5 overflow-y-auto shadow-2xl md:hidden border-r border-[var(--border)] animate-in slide-in-from-left duration-200">
+            {renderContent(true)}
+          </aside>
+        </>
+      )}
+    </>
   )
 }

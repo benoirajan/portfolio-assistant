@@ -99,6 +99,11 @@ Also contains:
 
 All values are lifted to `dashboard/page.tsx` via props.
 
+**Visibility & Collapsibility:**
+- **Unauthenticated State (`!isAuthenticated`):** The sidebar is completely hidden and omitted from the DOM when logged out. The authentication lock screen spans the full viewport width.
+- **Collapsible Desktop Mode:** Supports collapse/expand toggling via `<PanelLeft />` button in `Header.tsx` or `<PanelLeftClose />` inside the sidebar header, smoothly expanding main dashboard content to 100% width when collapsed.
+- **Mobile Drawer Mode:** Slide-out drawer with backdrop overlay triggered via mobile menu button.
+
 ---
 
 ## 7. `frontend/components/kpi/KpiBar.tsx`
@@ -143,16 +148,25 @@ Three Recharts charts:
 ## 10. `frontend/components/tabs/PerformanceTab.tsx`
 
 - Four metric cards: XIRR, Sharpe, Sortino, Weighted P/E
-- Beta gauge via `RadialBarChart` — colour-coded: green < 0.85, yellow 0.85–1.15, red > 1.15
-- Valuation matrix: Weighted ROE, Herfindahl index, Risk classification
+- Pure responsive SVG semi-circle arc gauge (`BetaSvgGauge`):
+  - Normalized ratio between 0.0 and 2.0 (1.0 = Nifty benchmark)
+  - Color-coded: green < 0.85, yellow 0.85–1.15, red > 1.15
+  - Replaced brittle negative margin (`mt-[-2rem]`) with centered SVG coordinate placement
+- Valuation matrix: Weighted ROE, Herfindahl index (HHI), Risk classification, 10Y G-Sec benchmark
+- Comprehensive defensive null/undefined guards across all `.toFixed()` and `.toLocaleString()` calls
 
 ---
 
 ## 11. `frontend/components/tabs/TaxTab.tsx`
 
-- Four metric cards: Net STCG, STCG tax, Net LTCG, LTCG tax
-- LTCG exemption progress bar (₹1.25 lakh limit) — turns red when limit exceeded
-- Harvestable loss candidates table (hidden when empty)
+- **PRO Tier Gating:**
+  - Evaluates whether user tier is `FREE` or if the tax endpoint returns 403 Forbidden.
+  - When gated, renders an informative locked preview card highlighting real-time STCG/LTCG computation, ₹1.25L exemption tracking, and March 31st loss harvesting trades with a direct trigger to `PricingModal.tsx`.
+- **Unlocked View:**
+  - Four metric cards: Net STCG (<1 yr at 20%), STCG tax, Net LTCG (>1 yr at 12.5%), LTCG tax
+  - LTCG exemption progress bar (Section 112A ₹1,25,000 limit)
+  - Harvestable loss candidates table with horizontal touch-scrolling support (`min-w-[500px]`)
+  - All currency and numerical metrics defensively guarded against null/undefined values
 
 ---
 
@@ -201,7 +215,20 @@ Rendered below the recommendations list, only when `advisory.source` is present 
 
 Central orchestrator:
 - Owns all sidebar state (mode, benchmark, caps, goal)
-- Calls all 5 React Query hooks
-- Provides empty fallback objects to prevent null-check cascades in child components
-- Renders `Header`, `Sidebar`, `KpiBar`, tab bar, and active tab content
-- Tab switching is local state — no URL routing needed for MVP
+- Handles responsive drawer navigation: `isMobileNavOpen` controls slide-out `Sidebar` with backdrop overlay on mobile (<768px) and hamburger toggle in `Header`
+- Receptors for PRO gating in `TaxTab` with shared `PricingModal`
+- Horizontal touch-scrolling tab bar (`overflow-x-auto whitespace-nowrap`) preventing clipping on mobile screens
+- Calls all 5 React Query hooks with defensive fallback objects
+
+---
+
+## 14. `frontend/app/page.tsx` — Public Marketing Landing Page
+
+High-conversion public root route:
+- **Hero Section:** Value proposition ("Institutional-grade Indian equity analytics powered by multi-stage AI"), live status badge, and dual CTAs ("Get Started Free", "Explore Live Dashboard").
+- **Interactive Showcase (`#preview`):** Tabbed live demo switcher showcasing AI Advisory Diagnostic, Indian Tax Harvesting, Quantitative Beta vs Nifty 50, and Sector Allocation with active guardrails.
+- **Architectural Pillars (`#features`):** 4 core feature cards highlighting 3-Stage Gemini Advisory, Indian Tax-Loss Harvesting, Encrypted Zerodha sync (Fernet AES-256), and Quantitative Ratios.
+- **Pricing & SaaS Tiers (`#pricing`):** Three plan cards (Free ₹0, Pro ₹299/mo, Elite ₹799/mo) with direct triggers to `PricingModal.tsx` and `AuthModal.tsx`.
+- **Interactive FAQ (`#faq`):** Accordion answering security, tax calculation, and advisory methodology questions.
+- **Header & Footer:** Public navbar with `ThemeToggle.tsx`, auth-aware action buttons ("Go to Dashboard" when authenticated), and educational/regulatory compliance notices.
+

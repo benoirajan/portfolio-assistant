@@ -64,6 +64,7 @@
 | `frontend/components/tabs/TaxTab.tsx` | [LLD 07 §11](./07_phase5_react_frontend.md#11-frontendcomponentstabstaxtabtsx) |
 | `frontend/components/tabs/AdvisoryTab.tsx` | [LLD 07 §12](./07_phase5_react_frontend.md#12-frontendcomponentstabsadvisorytabtsx) — adds basket budget input + basket table |
 | `frontend/app/dashboard/page.tsx` | [LLD 07 §13](./07_phase5_react_frontend.md#13-frontendappdashboardpagetsx--dashboard-page) |
+| `frontend/app/page.tsx` | [LLD 07 §14](./07_phase5_react_frontend.md#14-frontendapppagetsx--public-marketing-landing-page) |
 
 ---
 

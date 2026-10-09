@@ -65,10 +65,11 @@ export default function AuthModal() {
           })
 
           if (googleButtonRef.current) {
+            const btnWidth = typeof window !== 'undefined' ? Math.min(320, Math.max(220, window.innerWidth - 64)) : 300
             window.google.accounts.id.renderButton(googleButtonRef.current, {
               theme: 'outline',
               size: 'large',
-              width: 380,
+              width: btnWidth,
               text: 'continue_with',
               shape: 'rectangular',
               logo_alignment: 'left',
@@ -137,8 +138,8 @@ export default function AuthModal() {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="relative w-full max-w-md bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl p-6 flex flex-col gap-5 text-[var(--text)]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in duration-200">
+      <div className="relative w-full max-w-md max-h-[92vh] overflow-y-auto bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl p-4 sm:p-6 flex flex-col gap-4 sm:gap-5 text-[var(--text)]">
         {/* Close Button */}
         <button
           onClick={closeAuthModal}
