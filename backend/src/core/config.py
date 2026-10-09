@@ -7,11 +7,11 @@ try:
     backend_env = Path(__file__).resolve().parent.parent.parent / ".env"
     root_env = Path(__file__).resolve().parent.parent.parent.parent / ".env"
     if backend_env.exists():
-        load_dotenv(dotenv_path=backend_env)
+        load_dotenv(dotenv_path=backend_env, override=True)
     elif root_env.exists():
-        load_dotenv(dotenv_path=root_env)
+        load_dotenv(dotenv_path=root_env, override=True)
     else:
-        load_dotenv()
+        load_dotenv(override=True)
 except ImportError:
     pass
 

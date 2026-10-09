@@ -128,13 +128,13 @@ export default function PricingModal({
   const currentTier = (user?.tier ?? 'FREE').toUpperCase()
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="relative w-full max-w-3xl bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4">
+      <div className="relative w-full max-w-3xl max-h-[92vh] flex flex-col bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-[var(--border)]">
+        <div className="flex items-center justify-between px-5 sm:px-6 py-4 sm:py-5 border-b border-[var(--border)] shrink-0">
           <div>
-            <h2 className="text-lg font-bold text-[var(--text)]">Choose Your Plan</h2>
-            <p className="text-xs text-[var(--muted)] mt-0.5">
+            <h2 className="text-base sm:text-lg font-bold text-[var(--text)]">Choose Your Plan</h2>
+            <p className="text-[11px] sm:text-xs text-[var(--muted)] mt-0.5">
               Upgrade to unlock AI advisory runs, tax harvesting & more.
             </p>
           </div>
@@ -148,13 +148,14 @@ export default function PricingModal({
 
         {/* Error banner */}
         {error && (
-          <div className="mx-6 mt-4 px-4 py-2.5 bg-red-500/10 border border-red-500/30 rounded-lg text-xs text-red-400">
+          <div className="mx-5 sm:mx-6 mt-4 px-4 py-2.5 bg-red-500/10 border border-red-500/30 rounded-lg text-xs text-red-400">
             {error}
           </div>
         )}
 
         {/* Plans grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-6">
+        <div className="overflow-y-auto p-4 sm:p-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {loadingPlans
             ? [1, 2, 3].map((i) => (
                 <div
@@ -234,6 +235,7 @@ export default function PricingModal({
                   </div>
                 )
               })}
+          </div>
         </div>
 
         {/* Footer note */}
