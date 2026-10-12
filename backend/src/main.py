@@ -17,10 +17,10 @@ from src.api.advisory import router as advisory_router
 from src.api.billing import router as billing_router
 
 setup_logging(level="DEBUG")
-logger = logging.getLogger("portfolio_assistant.main")
+logger = logging.getLogger("folioguard.main")
 
 app = FastAPI(
-    title="Portfolio Assistant API",
+    title="FolioGuard API",
     description="Zerodha KiteConnect Integrated Portfolio Management & AI Advisory Backend",
     version="1.0.0"
 )
@@ -90,7 +90,7 @@ def health():
 @app.get("/")
 def root():
     return {
-        "app": "Portfolio Assistant API",
+        "app": "FolioGuard API",
         "status": "online",
         "demo_mode": settings.DEMO_MODE,
         "docs": "/docs"
@@ -100,7 +100,7 @@ def root():
 @app.on_event("startup")
 async def on_startup():
     logger.info(
-        "Portfolio Assistant API starting — demo_mode=%s host=%s port=%s",
+        "FolioGuard API starting — demo_mode=%s host=%s port=%s",
         settings.DEMO_MODE, settings.APP_HOST, settings.APP_PORT
     )
     # Ensure tables are created if running on SQLite or if auto-creation is needed
@@ -113,7 +113,7 @@ async def on_startup():
 
 @app.on_event("shutdown")
 async def on_shutdown():
-    logger.info("Portfolio Assistant API shutting down")
+    logger.info("FolioGuard API shutting down")
 
 
 if __name__ == "__main__":

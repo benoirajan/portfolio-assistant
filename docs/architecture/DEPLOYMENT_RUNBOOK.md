@@ -102,7 +102,20 @@ Add the following secrets:
 | `ENCRYPTION_SECRET_KEY` | 32-byte URL-safe base64 Fernet key | Generate with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
 | `GOOGLE_CLIENT_ID` | Google IAM OAuth 2.0 Web Client ID | From GCP Console -> Credentials |
 | `GOOGLE_CLIENT_SECRET` | Google IAM OAuth 2.0 Client Secret | From GCP Console -> Credentials |
+| `SMTP_HOST` | *(Optional)* SMTP Server Host (default: `smtp.gmail.com`) | `smtp.gmail.com` |
+| `SMTP_PORT` | *(Optional)* SMTP Port (default: `587`) | `587` |
+| `SMTP_USER` | Gmail address / SMTP login username | `your_email@gmail.com` |
+| `SMTP_PASSWORD` | 16-character Gmail App Password (no spaces) | Generated from Google Account -> Security -> App passwords |
+| `EMAILS_FROM` | Sender address for transactional emails | `your_email@gmail.com` or `noreply@folioguard.com` |
 | `ALLOWED_ORIGINS` | *(Optional)* Comma-separated allowed frontend origins | `https://portfolio-assistant-rouge.vercel.app,http://localhost:3000` |
+| `KITE_API_KEY` | *(Optional)* Zerodha Kite Connect Developer API Key | Paid developer API from [kite.trade](https://kite.trade) (Leave blank if using free `enctoken`) |
+| `KITE_API_SECRET` | *(Optional)* Zerodha Kite Connect API Secret | Paid developer API secret from [kite.trade](https://kite.trade) |
+
+> ### 💡 Why `KITE_API_KEY` is Optional in Production:
+> 1. **Multi-Tenant Architecture:** In production, FolioGuard is a multi-user SaaS. Users connect their own Zerodha accounts directly through the UI via `POST /api/v1/auth/broker/enctoken`.
+> 2. **End-to-End Encryption:** Each user's broker token is encrypted at rest using AES-256 Fernet (`ENCRYPTION_SECRET_KEY`) and stored individually in Supabase (`user_sessions` table). The server does not use a single shared broker token.
+> 3. **Free Web Session (`enctoken`):** Users sync holdings for free using their browser's web session `enctoken`, eliminating the mandatory ₹2,000/month Zerodha Kite Connect Developer subscription.
+> 4. If you specifically hold a paid Kite Connect developer app and want official OAuth redirection, you can add `KITE_API_KEY` and `KITE_API_SECRET`, but it is **not required** for normal operation.
 
 ---
 

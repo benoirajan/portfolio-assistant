@@ -67,7 +67,7 @@ export default function LandingPage() {
               <TrendingUp size={20} />
             </div>
             <div>
-              <span className="font-extrabold text-base tracking-tight block">Portfolio Assistant</span>
+              <span className="font-extrabold text-base tracking-tight block">FolioGuard</span>
               <span className="text-[10px] text-[var(--muted)] -mt-1 block font-medium">Multi-Tenant AI Advisory</span>
             </div>
           </Link>
@@ -206,7 +206,7 @@ export default function LandingPage() {
               Experience the Dashboard Capabilities
             </h2>
             <p className="text-xs sm:text-sm text-[var(--muted)] mt-2">
-              Select any capability below to preview how Portfolio Assistant visualizes and evaluates your equity portfolio.
+              Select any capability below to preview how FolioGuard visualizes and evaluates your equity portfolio.
             </p>
           </div>
 
@@ -708,7 +708,7 @@ export default function LandingPage() {
             {[
               {
                 q: 'How does Zerodha integration work, and is my password required?',
-                a: 'You never provide your Zerodha account password. Portfolio Assistant integrates using Zerodha Kite Connect login or your temporary enctoken session cookie. All session tokens are encrypted at rest using Fernet AES-256 keys and are never exposed to other tenants.',
+                a: 'You never provide your Zerodha account password. FolioGuard integrates using Zerodha Kite Connect login or your temporary enctoken session cookie. All session tokens are encrypted at rest using Fernet AES-256 keys and are never exposed to other tenants.',
               },
               {
                 q: 'How does the Indian Tax-Loss Harvesting engine calculate capital gains?',
@@ -762,7 +762,7 @@ export default function LandingPage() {
               <div className="w-8 h-8 rounded-lg bg-[var(--blue)]/10 text-[var(--blue)] flex items-center justify-center">
                 <TrendingUp size={18} />
               </div>
-              <span className="font-bold text-sm tracking-tight">Portfolio Assistant</span>
+              <span className="font-bold text-sm tracking-tight">FolioGuard</span>
             </div>
 
             <div className="flex items-center gap-6 text-xs text-[var(--muted)]">
@@ -775,11 +775,11 @@ export default function LandingPage() {
 
           <div className="p-4 rounded-xl bg-[var(--bg)] border border-[var(--border)] text-[10px] text-[var(--muted)] leading-relaxed">
             <p className="font-semibold text-[var(--text)] mb-1">Regulatory & Educational Notice:</p>
-            Portfolio Assistant is a financial technology software tool designed for quantitative analysis, tax loss planning, and informational insights. It is not a SEBI-registered Investment Adviser (RIA) or Research Analyst (RA). The automated suggestions and AI diagnostic outputs do not constitute personalized investment advice or an endorsement to buy or sell securities. Investments in the securities market are subject to market risks; read all related documents carefully before investing.
+            FolioGuard is a financial technology software tool designed for quantitative analysis, tax loss planning, and informational insights. It is not a SEBI-registered Investment Adviser (RIA) or Research Analyst (RA). The automated suggestions and AI diagnostic outputs do not constitute personalized investment advice or an endorsement to buy or sell securities. Investments in the securities market are subject to market risks; read all related documents carefully before investing.
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-between text-[11px] text-[var(--muted)] gap-2">
-            <p>© {new Date().getFullYear()} Portfolio Assistant. Built with Next.js & Google Gemini.</p>
+            <p>© {new Date().getFullYear()} FolioGuard. Built with Next.js & Google Gemini.</p>
             <p>End-to-End Multi-Tenant Isolation • AES-256 Encrypted</p>
           </div>
         </div>

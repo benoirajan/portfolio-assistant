@@ -1,5 +1,5 @@
 """
-Central logging configuration for Portfolio Assistant.
+Central logging configuration for FolioGuard.
 Call setup_logging() once at application startup (main.py).
 All modules obtain their logger via: logger = logging.getLogger(__name__)
 """
@@ -40,4 +40,4 @@ def setup_logging(level: str = "DEBUG") -> None:
     for noisy in ("uvicorn.access", "httpx", "httpcore", "urllib3", "yfinance"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
-    logging.getLogger("portfolio_assistant").info("Logging initialised — level=%s", level)
+    logging.getLogger("folioguard").info("Logging initialised — level=%s", level)

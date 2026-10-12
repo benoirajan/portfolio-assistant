@@ -166,6 +166,7 @@ export interface User {
   full_name?: string | null
   tier: 'FREE' | 'PRO' | 'ELITE' | string
   is_active: boolean
+  is_verified?: boolean
   created_at?: string | null
 }
 
@@ -179,6 +180,19 @@ export interface AuthResponse {
   access_token: string
   token_type: string
   user: User
+}
+
+export interface RegisterResponse {
+  status: string
+  message: string
+  email: string
+  dev_otp?: string | null
+}
+
+export interface ResendOtpResponse {
+  status: string
+  message: string
+  dev_otp?: string | null
 }
 
 export interface MeResponse {

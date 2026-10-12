@@ -85,7 +85,7 @@ export default function PricingModal({
           amount: orderRes.amount,
           currency: orderRes.currency,
           order_id: orderRes.razorpay_order_id,
-          name: 'Portfolio Assistant',
+          name: 'FolioGuard',
           description: `Upgrade to ${targetTier} Plan`,
           prefill: {
             email: user?.email ?? '',

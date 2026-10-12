@@ -13,6 +13,8 @@ import type {
   ExportZerodhaBasketResponse,
   MultiStagePipelineResponse,
   AuthResponse,
+  RegisterResponse,
+  ResendOtpResponse,
   MeResponse,
   BrokerStatusResponse,
 } from './types'
@@ -64,8 +66,14 @@ export const registerUser = (
   email: string,
   password: string,
   full_name?: string
-): Promise<AuthResponse> =>
+): Promise<RegisterResponse> =>
   apiClient.post('/api/v1/auth/register', { email, password, full_name }).then((r) => r.data)
+
+export const verifyEmailOtp = (email: string, otp: string): Promise<AuthResponse> =>
+  apiClient.post('/api/v1/auth/verify-otp', { email, otp }).then((r) => r.data)
+
+export const resendEmailOtp = (email: string): Promise<ResendOtpResponse> =>
+  apiClient.post('/api/v1/auth/resend-otp', { email }).then((r) => r.data)
 
 export const fetchCurrentUser = (): Promise<MeResponse> =>
   apiClient.get('/api/v1/auth/me').then((r) => r.data)

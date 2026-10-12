@@ -70,6 +70,13 @@ class Settings:
         "ELITE": 79900,  # ₹799 / month
     }
 
+    # Email & Verification (SMTP / Dev Logger)
+    SMTP_HOST: str = os.getenv("SMTP_HOST", "")
+    SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
+    SMTP_USER: str = os.getenv("SMTP_USER", "")
+    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
+    EMAILS_FROM: str = os.getenv("EMAILS_FROM", "noreply@folioguard.com")
+
 
 settings = Settings()
 

@@ -99,7 +99,7 @@ export default function Header({ onToggleSidebar, onToggleMobileMenu, isSidebarO
               <TrendingUp size={18} />
             </div>
             <div>
-              <span className="font-bold text-sm sm:text-base tracking-tight block">Portfolio Assistant</span>
+              <span className="font-bold text-sm sm:text-base tracking-tight block">FolioGuard</span>
               <span className="text-[9px] sm:text-[10px] text-[var(--muted)] -mt-1 block">Multi-Tenant AI Advisory</span>
             </div>
           </div>

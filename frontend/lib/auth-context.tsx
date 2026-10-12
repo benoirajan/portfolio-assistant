@@ -1,12 +1,14 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
-import type { User, BrokerStatus } from './types'
+import type { User, BrokerStatus, RegisterResponse, ResendOtpResponse } from './types'
 import {
   fetchCurrentUser,
   loginWithGoogle as apiLoginGoogle,
   loginWithEmail as apiLoginEmail,
   registerUser as apiRegisterUser,
+  verifyEmailOtp as apiVerifyEmailOtp,
+  resendEmailOtp as apiResendEmailOtp,
   saveBrokerEnctoken as apiSaveBrokerEnctoken,
   disconnectBroker as apiDisconnectBroker,
 } from './api'
@@ -22,7 +24,9 @@ interface AuthContextType {
   closeAuthModal: () => void
   loginWithGoogle: (credential: string) => Promise<void>
   loginWithEmail: (email: string, password: string) => Promise<void>
-  register: (email: string, password: string, fullName?: string) => Promise<void>
+  register: (email: string, password: string, fullName?: string) => Promise<RegisterResponse>
+  verifyOtp: (email: string, otp: string) => Promise<void>
+  resendOtp: (email: string) => Promise<ResendOtpResponse>
   logout: () => void
   saveEnctoken: (enctoken: string) => Promise<void>
   disconnectBrokerSession: () => Promise<void>
@@ -90,7 +94,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('auth:unauthorized', handleUnauthorized)
   }, [refreshUser, logout])
 
-  const loginWithGoogle = async (credential: string) => {
+  const loginWithGoogle = useCallback(async (credential: string) => {
     setIsLoading(true)
     try {
       const res = await apiLoginGoogle(credential)
@@ -104,9 +108,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [refreshUser])
 
-  const loginWithEmail = async (email: string, password: string) => {
+  const loginWithEmail = useCallback(async (email: string, password: string) => {
     setIsLoading(true)
     try {
       const res = await apiLoginEmail(email, password)
@@ -120,12 +124,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [refreshUser])
 
-  const register = async (email: string, password: string, fullName?: string) => {
+  const register = useCallback(async (email: string, password: string, fullName?: string): Promise<RegisterResponse> => {
     setIsLoading(true)
     try {
-      const res = await apiRegisterUser(email, password, fullName)
+      return await apiRegisterUser(email, password, fullName)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  const verifyOtp = useCallback(async (email: string, otp: string) => {
+    setIsLoading(true)
+    try {
+      const res = await apiVerifyEmailOtp(email, otp)
       if (typeof window !== 'undefined') {
         localStorage.setItem('auth_token', res.access_token)
       }
@@ -136,23 +149,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [refreshUser])
 
-  const saveEnctoken = async (enctoken: string) => {
+  const resendOtp = useCallback(async (email: string): Promise<ResendOtpResponse> => {
+    return await apiResendEmailOtp(email)
+  }, [])
+
+  const saveEnctoken = useCallback(async (enctoken: string) => {
     const res = await apiSaveBrokerEnctoken(enctoken)
     if (typeof window !== 'undefined') {
       localStorage.setItem('enctoken', enctoken)
     }
     setBrokerStatus({ has_enctoken: res.has_enctoken, broker: 'ZERODHA' })
-  }
+  }, [])
 
-  const disconnectBrokerSession = async () => {
+  const disconnectBrokerSession = useCallback(async () => {
     await apiDisconnectBroker()
     if (typeof window !== 'undefined') {
       localStorage.removeItem('enctoken')
     }
     setBrokerStatus({ has_enctoken: false, broker: null })
-  }
+  }, [])
 
   return (
     <AuthContext.Provider
@@ -168,6 +185,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loginWithGoogle,
         loginWithEmail,
         register,
+        verifyOtp,
+        resendOtp,
         logout,
         saveEnctoken,
         disconnectBrokerSession,

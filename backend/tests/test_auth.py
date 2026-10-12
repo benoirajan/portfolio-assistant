@@ -60,7 +60,9 @@ class TestAuthAPI(unittest.TestCase):
         me_data = me_resp.json()
         self.assertEqual(me_data.get("user", {}).get("email"), "investor.prod@gmail.com")
 
-    def test_user_registration_and_login(self):
+    @patch("src.services.email_service.email_service.send_verification_otp")
+    def test_user_registration_and_login(self, mock_send_email):
+        mock_send_email.return_value = True
         unique_email = f"tester_{uuid.uuid4().hex[:8]}@example.com"
         reg_resp = self.client.post(
             "/api/v1/auth/register",
@@ -70,8 +72,52 @@ class TestAuthAPI(unittest.TestCase):
                 "full_name": "Test Trader"
             }
         )
-        self.assertIn(reg_resp.status_code, [200, 201])
+        self.assertEqual(reg_resp.status_code, 201)
+        reg_data = reg_resp.json()
+        self.assertEqual(reg_data.get("status"), "otp_sent")
+        mock_send_email.assert_called_once()
 
+        # Query OTP from test database
+        from sqlalchemy import select
+        from src.models.user import User
+        from src.db.session import get_db_session
+
+        with get_db_session() as db:
+            user_rec = db.execute(select(User).where(User.email == unique_email)).scalar_one()
+            otp_code = user_rec.verification_otp
+
+        self.assertIsNotNone(otp_code)
+        self.assertEqual(len(otp_code), 6)
+
+        # Login before verification should be blocked with 403 EMAIL_NOT_VERIFIED
+        unverified_login = self.client.post(
+            "/api/v1/auth/login",
+            json={
+                "email": unique_email,
+                "password": "Password123!"
+            }
+        )
+        self.assertEqual(unverified_login.status_code, 403)
+        self.assertEqual(unverified_login.json().get("detail"), "EMAIL_NOT_VERIFIED")
+
+        # Wrong OTP fails with 400
+        wrong_otp_resp = self.client.post(
+            "/api/v1/auth/verify-otp",
+            json={"email": unique_email, "otp": "000000"}
+        )
+        self.assertEqual(wrong_otp_resp.status_code, 400)
+
+        # Correct OTP verifies user and returns access token
+        verify_resp = self.client.post(
+            "/api/v1/auth/verify-otp",
+            json={"email": unique_email, "otp": otp_code}
+        )
+        self.assertEqual(verify_resp.status_code, 200)
+        verify_data = verify_resp.json()
+        self.assertIn("access_token", verify_data)
+        self.assertTrue(verify_data.get("user", {}).get("is_verified"))
+
+        # Subsequent login now succeeds with 200
         login_resp = self.client.post(
             "/api/v1/auth/login",
             json={
@@ -81,6 +127,21 @@ class TestAuthAPI(unittest.TestCase):
         )
         self.assertEqual(login_resp.status_code, 200)
         self.assertIn("access_token", login_resp.json())
+
+    @patch("src.services.email_service.email_service.send_verification_otp")
+    def test_resend_otp(self, mock_send_email):
+        mock_send_email.return_value = True
+        unique_email = f"resend_{uuid.uuid4().hex[:8]}@example.com"
+        self.client.post(
+            "/api/v1/auth/register",
+            json={"email": unique_email, "password": "Password123!"}
+        )
+        resend_resp = self.client.post(
+            "/api/v1/auth/resend-otp",
+            json={"email": unique_email}
+        )
+        self.assertEqual(resend_resp.status_code, 200)
+        self.assertEqual(resend_resp.json().get("status"), "success")
 
     @patch("src.api.auth.verify_google_id_token")
     def test_broker_session_management(self, mock_verify):
