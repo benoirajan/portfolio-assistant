@@ -138,4 +138,61 @@ This document maintains the historical record of completed engineering tasks, ar
   * Verified `GET /dashboard` continues to return `200 OK`.
 * **Documentation:** Detailed in [LLD 07: React Frontend (§14)](../lld/07_phase5_react_frontend.md) and registered in [LLD Index](../lld/00_INDEX.md).
 
+---
+
+## 🔑 Task 8: Google IAM Authentication Fix & Email OTP Verification System (Priority: P0 - Identity & Security)
+* **Status:** Completed ✅
+* **Architectural Rationale:**
+  * **Google IAM / OAuth 2.0 Failure Diagnosis:** The Google Identity Services script (`https://accounts.google.com/gsi/client`) was missing from the Next.js layout, causing `window.google` to be undefined. A defensive condition in `AuthModal.tsx` misidentified missing script loading as an unconfigured `NEXT_PUBLIC_GOOGLE_CLIENT_ID` environment variable.
+  * **Email Verification Requirement:** Email registrations previously bypassed verification. To prevent unauthorized email claims, enforce tenant security, and validate account ownership, a native 6-digit OTP email verification protocol was implemented.
+* **Objective:** Fix the Google Identity Services integration in the frontend and establish an end-to-end 6-digit OTP verification system across FastAPI and Next.js.
+* **Implementation Details:**
+  * **Frontend Script Injection & Configuration:**
+    * Injected `<Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" />` into `frontend/app/layout.tsx`.
+    * Created `frontend/.env.local` to establish canonical Next.js environment variable precedence.
+    * Disambiguated error handling in `frontend/components/auth/AuthModal.tsx` to distinguish between missing client IDs and network/script loading blocks.
+    * Prevented duplicate Google button rendering by clearing the button container before GSI initialization.
+  * **Database Persistence & Migration:**
+    * Extended `User` model (`backend/src/models/user.py`) with `is_verified` (Boolean), `verification_otp` (String 6), and `otp_expires_at` (DateTime timezone-aware).
+    * Created and applied Alembic migration `backend/alembic/versions/0003_add_user_email_verification.py` on Supabase PostgreSQL (defaulting existing users to verified).
+  * **Backend Email & OTP Verification Pipeline:**
+    * Built `EmailService` (`backend/src/services/email_service.py`) supporting SMTP dispatch (configurable via `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`) and high-visibility terminal logging fallback for local development.
+    * Configured `Settings` (`backend/src/core/config.py`) for SMTP parameters.
+    * Refactored `/api/v1/auth/register` to generate cryptographically random 6-digit OTPs (`secrets.randbelow`), dispatch verification emails, and create users with `is_verified=False`.
+    * Implemented `POST /api/v1/auth/verify-otp` to validate OTP and expiration, activate users, and issue JWT tokens.
+    * Implemented `POST /api/v1/auth/resend-otp` with expiration refresh and rate limiting.
+    * Enforced verification gating in `POST /api/v1/auth/login`: unverified accounts are blocked with `HTTP 403 Forbidden` (`EMAIL_NOT_VERIFIED`) and automatically issued a fresh OTP.
+    * Updated `POST /api/v1/auth/google` to mark Google IAM users as verified automatically (`is_verified=True`).
+  * **Interactive Frontend Modal UI & AuthContext:**
+    * Extended `AuthContext` (`frontend/lib/auth-context.tsx`) with `verifyOtp` and `resendOtp` actions, memoized with `useCallback`.
+    * Added `verifyEmailOtp` and `resendEmailOtp` helpers to `frontend/lib/api.ts` and updated `types.ts`.
+    * Added `'verify_otp'` state to `frontend/components/auth/AuthModal.tsx` featuring a 6-digit monospace input, 30-second resend cooldown timer, dev-mode OTP indicator, and automatic navigation upon unverified login attempts.
+* **Verification Results:**
+  * **Database Migration:** Successfully executed `alembic upgrade head` (`0002_add_subscriptions_table -> 0003_add_user_email_verification`).
+  * **Backend Unit Tests:** All 50 tests in `backend/tests` passed (`Ran 50 tests in 8.742s — OK`), including full OTP registration, unverified 403 blocks, invalid OTP rejection, valid OTP verification, and resend tests.
+  * **Frontend Build & Linter:** `next build` succeeded with zero TypeScript errors and all static pages prerendered (`Environments: .env.local, .env`). ESLint passed with 0 errors.
+* **Documentation:** Detailed in [LLD 10: Multi-Tenant Auth (§2.2, §5)](../lld/10_multi_tenant_auth.md) and registered in [LLD Index](../lld/00_INDEX.md).
+
+---
+
+## 🛡️ Task 9: Application Rebranding to FolioGuard across UI, Emails, and API Metadata (Priority: P2 - Brand Identity & UX)
+* **Status:** Completed ✅
+* **Architectural Rationale:** The application was rebranded from generic "Portfolio Assistant" to **"FolioGuard"** to establish a distinct, trustworthy identity for retail investors and high-net-worth portfolio managers across web application interfaces, email notifications, browser tabs, payment flows, and API responses.
+* **Objective:** Systematically update all user-facing UI copy, email templates, document metadata, payment modal details, and backend application metadata to **FolioGuard**.
+* **Implementation Details:**
+  * **Frontend UI & Metadata:**
+    * Document head & tab title in `frontend/app/layout.tsx`: `<title>FolioGuard — AI Portfolio Analytics & Risk Intelligence</title>` and meta description.
+    * Header component (`frontend/components/layout/Header.tsx`): Updated top-left logo text to `FolioGuard`.
+    * Landing page (`frontend/app/page.tsx`): Updated public navbar brand, interactive demo description, FAQ security answer, footer brand logo, SEBI regulatory disclosure, and copyright notice.
+    * Checkout modal (`frontend/components/billing/PricingModal.tsx`): Updated Razorpay payment sheet merchant name to `name: 'FolioGuard'`.
+  * **Email & Backend Services:**
+    * Transactional email service (`backend/src/services/email_service.py`): Updated email subject line (`"Your FolioGuard Verification Code: {otp}"`), HTML email title and body copy, plaintext fallback, and terminal console log banner (`[FOLIOGUARD — EMAIL VERIFICATION OTP]`).
+    * Backend configuration (`backend/src/core/config.py`): Updated default sender address to `EMAILS_FROM="noreply@folioguard.com"`.
+    * FastAPI application entrypoint (`backend/src/main.py`): Updated OpenAPI app title to `"FolioGuard API"`, `/health` endpoint response to `"app": "FolioGuard API"`, and startup/shutdown lifecycle logs.
+    * Central logging (`backend/src/core/logging_config.py`): Updated logging docstring and logger name to `folioguard`.
+* **Verification Results:**
+  * **Backend Unit Tests:** All unit and auth tests pass (`PYTHONPATH=backend python -m unittest backend/tests/test_auth.py` ran in 0.655s).
+  * **Frontend Production Build:** Next.js Turbopack build (`npm run build`) compiled successfully in 6.6s with zero TypeScript or lint errors.
+* **Documentation:** Recorded in [Implementation Plan](../../.gemini/antigravity-ide/brain/dd051d97-2030-4f3b-9617-ae7b69129701/plan_rebrand_folioguard.md) and [Walkthrough](../../.gemini/antigravity-ide/brain/dd051d97-2030-4f3b-9617-ae7b69129701/walkthrough.md).
+
 

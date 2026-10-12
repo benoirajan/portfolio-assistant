@@ -136,6 +136,11 @@ jobs:
             ENCRYPTION_SECRET_KEY=${{ secrets.ENCRYPTION_SECRET_KEY }}
             GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
             GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
+            SMTP_HOST=${{ secrets.SMTP_HOST || 'smtp.gmail.com' }}
+            SMTP_PORT=${{ secrets.SMTP_PORT || '587' }}
+            SMTP_USER=${{ secrets.SMTP_USER || '' }}
+            SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD || '' }}
+            EMAILS_FROM=${{ secrets.EMAILS_FROM || 'noreply@folioguard.com' }}
 
       - name: Health Check Verification Probe
         run: |

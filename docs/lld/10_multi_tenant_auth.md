@@ -34,6 +34,23 @@ graph TD
 3. **Session State & Profile (`GET /api/v1/auth/me`)**:
    - Returns current user profile (`id`, `email`, `tier`, `is_active`) and connected broker status.
 
+### 2.2 Email Verification & 6-Digit OTP Protocol
+1. **Registration & OTP Generation (`POST /api/v1/auth/register`)**:
+   - Creates a user account with `is_verified=False`.
+   - Generates a cryptographically secure 6-digit numeric OTP code (`secrets.randbelow`) with a 10-minute expiry (`otp_expires_at`).
+   - Dispatches the OTP email via `EmailService` (transmits via SMTP if configured, or falls back to high-visibility terminal logger in development mode).
+   - Returns `{ "status": "otp_sent", "email": "...", "message": "..." }`.
+2. **OTP Verification & Activation (`POST /api/v1/auth/verify-otp`)**:
+   - Validates the 6-digit code against `users.verification_otp` and checks expiry.
+   - Activates account (`is_verified=True`), wipes temporary OTP fields, and issues signed JWT access token.
+3. **Resend OTP (`POST /api/v1/auth/resend-otp`)**:
+   - Re-generates OTP and updates expiry for unverified user accounts.
+4. **Login Enforcement (`POST /api/v1/auth/login`)**:
+   - Validates password against PBKDF2 hash.
+   - Checks `is_verified`. If unverified, automatically dispatches a fresh OTP and rejects with `HTTP 403 Forbidden` (`detail: "EMAIL_NOT_VERIFIED"`). Next.js automatically transitions to the OTP entry view.
+5. **Google IAM Automatic Verification (`POST /api/v1/auth/google`)**:
+   - Google ID tokens verify identity at the provider level; accounts provisioned via Google IAM are automatically initialized with `is_verified=True`.
+
 ---
 
 ## 3. Broker Credential Security & In-Memory Resolution
@@ -84,9 +101,11 @@ def get_current_user(
 
 | Method | Endpoint | Description | Auth Required |
 |---|---|---|---|
-| `POST` | `/api/v1/auth/google` | Google IAM ID Token verification & user provisioning | No |
-| `POST` | `/api/v1/auth/register` | User registration with email/password | No |
-| `POST` | `/api/v1/auth/login` | User login with email/password | No |
+| `POST` | `/api/v1/auth/google` | Google IAM ID Token verification & user provisioning (auto-verified) | No |
+| `POST` | `/api/v1/auth/register` | User registration with email/password (generates 6-digit OTP) | No |
+| `POST` | `/api/v1/auth/verify-otp` | Verify 6-digit email code and return JWT access token | No |
+| `POST` | `/api/v1/auth/resend-otp` | Regenerate and resend 6-digit verification code | No |
+| `POST` | `/api/v1/auth/login` | User login (blocks unverified users with HTTP 403 `EMAIL_NOT_VERIFIED`) | No |
 | `GET` | `/api/v1/auth/me` | Fetch authenticated profile & broker status | Yes (Bearer) |
 | `POST` | `/api/v1/auth/broker/enctoken` | Save and AES-256 encrypt Zerodha enctoken | Yes (Bearer) |
 | `GET` | `/api/v1/auth/broker/status` | Check if tenant has an active encrypted session | Yes (Bearer) |

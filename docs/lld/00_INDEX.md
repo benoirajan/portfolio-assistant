@@ -17,7 +17,7 @@
 | 7 | [07_phase5_react_frontend.md](./07_phase5_react_frontend.md) | Phase 5 | Next.js app structure, all components, hooks, API client, type definitions |
 | 8 | [08_cache_layer.md](./08_cache_layer.md) | Cross-cutting | Redis cache client, key conventions, TTLs, graceful degradation, token security |
 | 9 | [09_database_persistence.md](./09_database_persistence.md) | Phase 6 & P0 | Managed Supabase PostgreSQL, SQLAlchemy 2.0 ORM, Alembic migrations, test pipeline |
-| 10 | [10_multi_tenant_auth.md](./10_multi_tenant_auth.md) | Phase 6 & P0 | Multi-tenant auth, Google IAM, PBKDF2 passwords, Fernet AES-256 broker encryption, SSE auth |
+| 10 | [10_multi_tenant_auth.md](./10_multi_tenant_auth.md) | Phase 6 & P0 | Multi-tenant auth, Google IAM, email OTP verification, PBKDF2 passwords, Fernet AES-256 broker encryption, SSE auth |
 | 11 | [11_saas_monetization.md](./11_saas_monetization.md) | Phase 7 & P1 | SaaS monetization, tier gating, Razorpay integration, Redis AI quota rate limiting |
 
 ---
