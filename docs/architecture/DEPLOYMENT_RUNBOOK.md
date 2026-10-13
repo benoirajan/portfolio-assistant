@@ -84,32 +84,41 @@ rm ./gcp-sa-key.json
 
 ---
 
-## 3. GitHub Repository Secrets Setup
+## 3. GitHub Configuration: Secrets & Variables Setup
 
 Navigate to your GitHub Repository:  
-**Settings** -> **Secrets and variables** -> **Actions** -> **New repository secret**.
+**Settings** -> **Secrets and variables** -> **Actions**.
 
-Add the following secrets:
+### 3.1 Repository Secrets (Sensitive Credentials)
+Click **New repository secret** for:
 
 | Secret Name | Description | Example / Source |
 |---|---|---|
-| `GCP_PROJECT_ID` | Your Google Cloud project ID | `my-portfolio-proj-123` |
+| `GCP_PROJECT_ID` | Your Google Cloud project ID (can also be a variable) | `my-portfolio-proj-123` |
 | `GCP_SA_KEY` | Entire JSON content of `gcp-sa-key.json` | `{"type": "service_account", ...}` |
 | `DATABASE_URL` | Supabase PostgreSQL Connection String | `postgresql://postgres.[REF]:[PWD]@aws-0-ap-south-1.pooler.supabase.com:6543/postgres?sslmode=require` |
 | `REDIS_URL` | Upstash Redis Connection String | `rediss://default:[PWD]@[HOST].upstash.io:6379` |
 | `GEMINI_API_KEY` | Google Gemini API Key | Free key from [Google AI Studio](https://aistudio.google.com/app/apikey) |
 | `JWT_SECRET_KEY` | 32+ character random string for signing JWTs | Generate with `openssl rand -hex 32` |
 | `ENCRYPTION_SECRET_KEY` | 32-byte URL-safe base64 Fernet key | Generate with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
-| `GOOGLE_CLIENT_ID` | Google IAM OAuth 2.0 Web Client ID | From GCP Console -> Credentials |
 | `GOOGLE_CLIENT_SECRET` | Google IAM OAuth 2.0 Client Secret | From GCP Console -> Credentials |
+| `SMTP_PASSWORD` | 16-character Gmail App Password (no spaces) | Generated from Google Account -> Security -> App passwords |
+| `KITE_API_KEY` | *(Optional)* Zerodha Kite Connect Developer API Key | Paid developer API from [kite.trade](https://kite.trade) (Leave blank if using free `enctoken`) |
+| `KITE_API_SECRET` | *(Optional)* Zerodha Kite Connect API Secret | Paid developer API secret from [kite.trade](https://kite.trade) |
+
+### 3.2 Repository Variables (Non-Sensitive Configuration)
+Switch to the **Variables** tab and click **New repository variable** for:
+
+| Variable Name | Description | Example / Default |
+|---|---|---|
+| `ALLOWED_ORIGINS` | *(Optional)* Comma-separated allowed frontend origins | `https://portfolio-assistant-rouge.vercel.app,http://localhost:3000` |
+| `GOOGLE_CLIENT_ID` | *(Optional)* Google IAM OAuth 2.0 Web Client ID | From GCP Console -> Credentials |
 | `SMTP_HOST` | *(Optional)* SMTP Server Host (default: `smtp.gmail.com`) | `smtp.gmail.com` |
 | `SMTP_PORT` | *(Optional)* SMTP Port (default: `587`) | `587` |
 | `SMTP_USER` | Gmail address / SMTP login username | `your_email@gmail.com` |
-| `SMTP_PASSWORD` | 16-character Gmail App Password (no spaces) | Generated from Google Account -> Security -> App passwords |
 | `EMAILS_FROM` | Sender address for transactional emails | `your_email@gmail.com` or `noreply@folioguard.com` |
-| `ALLOWED_ORIGINS` | *(Optional)* Comma-separated allowed frontend origins | `https://portfolio-assistant-rouge.vercel.app,http://localhost:3000` |
-| `KITE_API_KEY` | *(Optional)* Zerodha Kite Connect Developer API Key | Paid developer API from [kite.trade](https://kite.trade) (Leave blank if using free `enctoken`) |
-| `KITE_API_SECRET` | *(Optional)* Zerodha Kite Connect API Secret | Paid developer API secret from [kite.trade](https://kite.trade) |
+
+> ℹ️ *Note: The deployment workflow supports both `vars.*` and `secrets.*` seamlessly with precedence given to `vars.*` for configuration values.*
 
 > ### 💡 Why `KITE_API_KEY` is Optional in Production:
 > 1. **Multi-Tenant Architecture:** In production, FolioGuard is a multi-user SaaS. Users connect their own Zerodha accounts directly through the UI via `POST /api/v1/auth/broker/enctoken`.

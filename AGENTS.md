@@ -4,15 +4,9 @@
 
 For all conversations and agent tasks in this repository, the following protocol must be strictly adhered to upon finishing any task, bug fix, or feature:
 
-### 1. Document Completed Tasks in `docs/`
-- Every completed task must be documented in `docs/plans/completed_tasks.md` with:
-  - Task title and priority
-  - Architectural rationale and objective
-  - Concrete implementation details (files, classes, routes)
-  - Verification results and test status
+### 1. Architectural & Design Documentation in `docs/`
 - If the task added or altered architecture, schemas, or endpoints, update or create the relevant low-level design document in `docs/lld/` and register it in `docs/lld/00_INDEX.md`.
 
-### 2. Remove Completed Items from Active Task Lists
-- Immediately remove completed tasks from `docs/plans/todo_tomorrow_tasks.md`.
-- `docs/plans/todo_tomorrow_tasks.md` must only contain active, pending, uncompleted work.
-- It must maintain a top-level link to `docs/plans/completed_tasks.md` for historical traceability.
+### 2. Manage Tasks & Issues via GitHub Issues
+- Tasks, backlogs, and completion tracking are managed directly via GitHub Issues ([Issues Tracker](https://github.com/benoirajan/portfolio-assistant/issues)).
+- When finishing a task that has a corresponding GitHub issue, close or comment on the issue with the completion summary (including architectural rationale, implementation details, and verification results).
