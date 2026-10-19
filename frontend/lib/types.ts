@@ -39,7 +39,24 @@ export interface HoldingsResponse {
   holdings: Holding[]
 }
 
+export interface UploadSkippedRow {
+  row: number
+  reason: string
+  data: Record<string, unknown>
+}
+
+export interface UploadHoldingsResponse {
+  status: string
+  source: string
+  filename: string
+  summary: PortfolioSummary
+  holdings_count: number
+  skipped_rows: UploadSkippedRow[]
+  skipped_count: number
+}
+
 // ── Performance ───────────────────────────────────────────────────────────────
+
 
 export interface PerformanceMetrics {
   xirr_percentage: number

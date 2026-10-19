@@ -2,6 +2,8 @@
 
 import { useState, useMemo } from 'react'
 import type { Holding } from '@/lib/types'
+import UploadSection from './UploadSection'
+import { UploadCloud, ChevronDown, ChevronUp } from 'lucide-react'
 
 interface Props { holdings: Holding[] }
 
@@ -10,6 +12,7 @@ const fmt = (n?: number) => n != null ? n.toFixed(2) : '—'
 export default function HoldingsTab({ holdings }: Props) {
   const [search, setSearch] = useState('')
   const [sectors, setSectors] = useState<string[]>([])
+  const [showUpload, setShowUpload] = useState(false)
 
   const allSectors = useMemo(() => [...new Set(holdings.map((h) => h.sector))].sort(), [holdings])
 
@@ -34,31 +37,71 @@ export default function HoldingsTab({ holdings }: Props) {
   const toggleSector = (s: string) =>
     setSectors((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s])
 
+  if (holdings.length === 0) {
+    return (
+      <div className="flex flex-col gap-6 max-w-2xl mx-auto py-6">
+        <div className="text-center space-y-1">
+          <h3 className="text-base font-semibold text-[var(--text)]">No Holdings Found</h3>
+          <p className="text-xs text-[var(--muted)]">
+            Upload your stock holdings from a Zerodha export or custom CSV/Excel spreadsheet to get started.
+          </p>
+        </div>
+        <UploadSection />
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap gap-2">
-        <input
-          placeholder="Search symbol…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="bg-[var(--surface)] border border-[var(--border)] rounded px-3 py-1.5 text-sm outline-none focus:border-[var(--blue)] w-48"
-        />
-        <div className="flex flex-wrap gap-1">
-          {allSectors.map((s) => (
-            <button
-              key={s}
-              onClick={() => toggleSector(s)}
-              className={`text-xs px-2 py-1 rounded border transition-colors ${
-                sectors.includes(s)
-                  ? 'bg-[var(--blue)] border-[var(--blue)] text-white'
-                  : 'border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]'
-              }`}
-            >
-              {s}
-            </button>
-          ))}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            placeholder="Search symbol…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="bg-[var(--surface)] border border-[var(--border)] rounded px-3 py-1.5 text-sm outline-none focus:border-[var(--blue)] w-48"
+          />
+          <div className="flex flex-wrap gap-1">
+            {allSectors.map((s) => (
+              <button
+                key={s}
+                onClick={() => toggleSector(s)}
+                className={`text-xs px-2 py-1 rounded border transition-colors ${
+                  sectors.includes(s)
+                    ? 'bg-[var(--blue)] border-[var(--blue)] text-white'
+                    : 'border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]'
+                }`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setShowUpload((prev) => !prev)}
+          className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all cursor-pointer ${
+            showUpload
+              ? 'bg-[var(--surface-hover)] border-[var(--blue)] text-[var(--blue)]'
+              : 'bg-[var(--surface)] border-[var(--border)] text-[var(--text)] hover:border-[var(--blue)]/60'
+          }`}
+        >
+          <UploadCloud size={14} className="text-[var(--blue)]" />
+          <span>Import CSV/Excel</span>
+          {showUpload ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        </button>
       </div>
+
+      {showUpload && (
+        <div className="animate-fadeIn">
+          <UploadSection
+            isCollapsible
+            onClose={() => setShowUpload(false)}
+            onUploadSuccess={() => setShowUpload(false)}
+          />
+        </div>
+      )}
 
       <div className="overflow-x-auto rounded-lg border border-[var(--border)]">
         <table className="w-full text-sm">

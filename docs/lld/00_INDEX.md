@@ -19,6 +19,7 @@
 | 9 | [09_database_persistence.md](./09_database_persistence.md) | Phase 6 & P0 | Managed Supabase PostgreSQL, SQLAlchemy 2.0 ORM, Alembic migrations, test pipeline |
 | 10 | [10_multi_tenant_auth.md](./10_multi_tenant_auth.md) | Phase 6 & P0 | Multi-tenant auth, Google IAM, email OTP verification, PBKDF2 passwords, Fernet AES-256 broker encryption, SSE auth |
 | 11 | [11_saas_monetization.md](./11_saas_monetization.md) | Phase 7 & P1 | SaaS monetization, tier gating, Razorpay integration, Redis AI quota rate limiting |
+| 12 | [12_csv_excel_upload.md](./12_csv_excel_upload.md) | Phase 8 & Feature | CSV/XLSX file ingestion, column alias normalization, row validation, UploadSection component, cache invalidation |
 
 ---
 
@@ -45,12 +46,14 @@
 | `src/services/tax_harvesting.py` | [LLD 02 §3](./02_phase2_analytics_engine.md#3-srcservicestax_harvestingpy--tax-harvesting-analyzer) |
 | `src/services/rebalancer.py` | [LLD 03 §2](./03_phase3_ai_advisory.md#2-srcservicesrebalancerpy--deterministic-rule-engine) |
 | `src/services/llm_advisor.py` | [LLD 03 §3](./03_phase3_ai_advisory.md#3-srcservicesllm_advisorpy--llm-advisory-service), [LLD 05 §5](./05_retry_and_fallback.md#5-llm_advisorpy--gemini--ollama-retry) |
+| `src/services/file_parser.py` | [LLD 12 §3](./12_csv_excel_upload.md#3-backend-implementation) |
 | `src/api/auth.py` | [LLD 01 §3](./01_phase1_auth_and_holdings.md#3-srcapiauthpy--authentication-router), [LLD 04 §3](./04_logging.md#authpy) |
-| `src/api/holdings.py` | [LLD 01 §4](./01_phase1_auth_and_holdings.md#4-srcapiholdingspy--holdings--portfolio-router), [LLD 04 §3](./04_logging.md#holdingspy) |
+| `src/api/holdings.py` | [LLD 01 §4](./01_phase1_auth_and_holdings.md#4-srcapiholdingspy--holdings--portfolio-router), [LLD 04 §3](./04_logging.md#holdingspy), [LLD 12 §3](./12_csv_excel_upload.md#3-backend-implementation) |
 | `src/api/analytics.py` | [LLD 02 §4](./02_phase2_analytics_engine.md#4-srcapianalyticspy--analytics-router), [LLD 04 §3](./04_logging.md#analyticspy) |
 | `src/api/advisory.py` | [LLD 03 §4](./03_phase3_ai_advisory.md#4-srcapiadvisorypy--advisory-rest-endpoint), [LLD 03 §9](./03_phase3_ai_advisory.md#9-trade-basket-feature), [LLD 04 §3](./04_logging.md#advisorypy) |
-| `frontend/lib/types.ts` | [LLD 07 §1](./07_phase5_react_frontend.md#1-frontendlibtypests--typescript-type-definitions) — adds `BasketItem`, `BasketResponse` |
-| `frontend/lib/api.ts` | [LLD 07 §2](./07_phase5_react_frontend.md#2-frontendlibapits--axios-client--api-functions) — adds `createBasket(recommendations, budget)` |
+| `tests/test_file_upload.py` | [LLD 12 §5](./12_csv_excel_upload.md#5-verification--testing) |
+| `frontend/lib/types.ts` | [LLD 07 §1](./07_phase5_react_frontend.md#1-frontendlibtypests--typescript-type-definitions) — adds `BasketItem`, `BasketResponse`, `UploadHoldingsResponse` |
+| `frontend/lib/api.ts` | [LLD 07 §2](./07_phase5_react_frontend.md#2-frontendlibapits--axios-client--api-functions) — adds `createBasket`, `uploadHoldingsFile` |
 | `frontend/hooks/usePortfolio.ts` | [LLD 07 §3](./07_phase5_react_frontend.md#3-frontendhooksuseportfoliots--react-query-hooks) |
 | `frontend/app/layout.tsx` | [LLD 07 §4](./07_phase5_react_frontend.md#4-frontendapplayouttsx--root-layout) |
 | `frontend/components/theme/ThemeProvider.tsx` | [LLD 07 §4](./07_phase5_react_frontend.md#4-frontendapplayouttsx--root-layout) |
@@ -58,7 +61,8 @@
 | `frontend/components/layout/ThemeToggle.tsx` | [LLD 07 §5](./07_phase5_react_frontend.md#5-frontendcomponentslayoutheadertsx--themetoggletsx) |
 | `frontend/components/layout/Sidebar.tsx` | [LLD 07 §6](./07_phase5_react_frontend.md#6-frontendcomponentslayoutsidebartsx) |
 | `frontend/components/kpi/KpiBar.tsx` | [LLD 07 §7](./07_phase5_react_frontend.md#7-frontendcomponentskpikpibartsx) |
-| `frontend/components/tabs/HoldingsTab.tsx` | [LLD 07 §8](./07_phase5_react_frontend.md#8-frontendcomponentstabsholdingstabtsx) |
+| `frontend/components/tabs/UploadSection.tsx` | [LLD 12 §4](./12_csv_excel_upload.md#4-frontend-implementation) |
+| `frontend/components/tabs/HoldingsTab.tsx` | [LLD 07 §8](./07_phase5_react_frontend.md#8-frontendcomponentstabsholdingstabtsx), [LLD 12 §4](./12_csv_excel_upload.md#4-frontend-implementation) |
 | `frontend/components/tabs/SectorTab.tsx` | [LLD 07 §9](./07_phase5_react_frontend.md#9-frontendcomponentstabssectortabtsx) |
 | `frontend/components/tabs/PerformanceTab.tsx` | [LLD 07 §10](./07_phase5_react_frontend.md#10-frontendcomponentstabsperformancetabtsx) |
 | `frontend/components/tabs/TaxTab.tsx` | [LLD 07 §11](./07_phase5_react_frontend.md#11-frontendcomponentstabstaxtabtsx) |

@@ -1,6 +1,6 @@
 import hashlib
 import logging
-from fastapi import APIRouter, HTTPException, Header, Depends
+from fastapi import APIRouter, HTTPException, Header, Depends, UploadFile, File
 from typing import List, Dict, Any, Optional
 
 from src.services.zerodha_client import zerodha_service
@@ -10,6 +10,7 @@ from src.core import cache
 from src.core.security import get_current_user, get_user_enctoken
 from src.models.user import User
 from src.services.portfolio_repository import save_portfolio, load_portfolio
+from src.services.file_parser import file_parser_service, FileParserError
 
 logger = logging.getLogger("portfolio_assistant.api.holdings")
 router = APIRouter(prefix="/api/v1", tags=["Portfolio"])
@@ -105,6 +106,100 @@ def get_holdings(
     except Exception as e:
         logger.error("Holdings fetch error for user %s: %s", current_user.id, e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/holdings/upload", tags=["Portfolio"])
+async def upload_holdings(
+    file: UploadFile = File(..., description="CSV or XLSX file containing stock holdings"),
+    current_user: User = Depends(get_current_user)
+):
+    """Parses an uploaded CSV/XLSX holdings file, enriches, persists, and returns a summary."""
+    # ── Validate content type / extension ─────────────────────────────
+    filename = file.filename or "unknown"
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if ext not in ("csv", "xlsx", "xls"):
+        raise HTTPException(
+            status_code=400,
+            detail="Unsupported file type. Please upload a .csv or .xlsx file."
+        )
+
+    try:
+        file_bytes = await file.read()
+    except Exception as e:
+        logger.error("Failed to read uploaded file for user %s: %s", current_user.id, e)
+        raise HTTPException(status_code=400, detail=f"Failed to read file: {e}")
+
+    # ── Parse ─────────────────────────────────────────────────────────
+    try:
+        valid_holdings, skipped_rows = file_parser_service.parse_holdings_file(file_bytes, filename)
+    except FileParserError as e:
+        logger.warning("File parse error for user %s: %s", current_user.id, e)
+        status_code = 413 if "too large" in str(e).lower() else 422
+        raise HTTPException(status_code=status_code, detail=str(e))
+    except Exception as e:
+        logger.error("Unexpected parse error for user %s: %s", current_user.id, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"File parsing failed: {e}")
+
+    if not valid_holdings:
+        raise HTTPException(
+            status_code=422,
+            detail="No valid holdings found in file. Required columns: tradingsymbol, quantity, average_price"
+        )
+
+    # ── Enrich with fundamentals ──────────────────────────────────────
+    try:
+        enriched_holdings = market_data_service.enrich_holdings_with_fundamentals(valid_holdings)
+    except Exception as e:
+        logger.warning("Enrichment failed for uploaded file (user %s), using raw data: %s", current_user.id, e)
+        enriched_holdings = valid_holdings
+
+    # ── Compute portfolio summary ─────────────────────────────────────
+    total_investment = sum(h.get("quantity", 0) * h.get("average_price", 0) for h in enriched_holdings)
+    current_value = sum(h.get("quantity", 0) * h.get("last_price", 0) for h in enriched_holdings)
+    total_pnl = current_value - total_investment
+    total_pnl_pct = (total_pnl / total_investment * 100) if total_investment > 0 else 0.0
+
+    summary = {
+        "total_holdings_count": len(enriched_holdings),
+        "total_investment": round(total_investment, 2),
+        "current_value": round(current_value, 2),
+        "total_pnl": round(total_pnl, 2),
+        "total_pnl_percentage": round(total_pnl_pct, 2),
+    }
+
+    portfolio_data = {
+        "status": "success",
+        "is_live": False,
+        "summary": summary,
+        "holdings": enriched_holdings,
+    }
+
+    # ── Persist via save_portfolio ─────────────────────────────────────
+    token_identifier = f"upload_{current_user.id}"
+    try:
+        save_portfolio(token_identifier, portfolio_data, user_id=current_user.id)
+    except Exception as e:
+        logger.error("Failed to persist uploaded holdings for user %s: %s", current_user.id, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to save portfolio: {e}")
+
+    # ── Invalidate cache so GET /holdings reflects uploaded data ───────
+    cache.delete_pattern(f"holdings:{current_user.id}:*")
+
+    logger.info(
+        "File upload complete for user %s — file='%s' holdings=%d skipped=%d investment=%.2f pnl=%.2f",
+        current_user.id, filename, len(enriched_holdings), len(skipped_rows),
+        total_investment, total_pnl,
+    )
+
+    return {
+        "status": "success",
+        "source": "file_upload",
+        "filename": filename,
+        "summary": summary,
+        "holdings_count": len(enriched_holdings),
+        "skipped_rows": skipped_rows,
+        "skipped_count": len(skipped_rows),
+    }
 
 
 @router.get("/positions")
