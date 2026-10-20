@@ -1,6 +1,7 @@
 import axios from 'axios'
 import type {
   HoldingsResponse,
+  UploadHoldingsResponse,
   PerformanceResponse,
   TaxResponse,
   MarginsResponse,
@@ -91,6 +92,16 @@ export const disconnectBroker = (): Promise<{ status: string; message: string }>
 
 export const fetchHoldings = (): Promise<HoldingsResponse> =>
   apiClient.get('/api/v1/holdings').then((r) => r.data)
+
+export const uploadHoldingsFile = (file: File): Promise<UploadHoldingsResponse> => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return apiClient
+    .post('/api/v1/holdings/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    .then((r) => r.data)
+}
 
 export const fetchPerformance = (): Promise<PerformanceResponse> =>
   apiClient.get('/api/v1/analytics/performance').then((r) => r.data)

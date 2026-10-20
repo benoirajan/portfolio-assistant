@@ -1,0 +1,6 @@
+tradingsymbol,exchange,quantity,average_price,last_price
+RELIANCE,NSE,50,2450.00,2980.50
+,NSE,30,3800.00,4120.00
+HDFCBANK,NSE,-10,1580.00,1640.25
+INFY,NSE,60,abc,1810.00
+TATAMOTORS,NSE,120,620.00,1015.00
