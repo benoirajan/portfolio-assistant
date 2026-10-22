@@ -20,7 +20,6 @@
 | 10 | [10_multi_tenant_auth.md](./10_multi_tenant_auth.md) | Phase 6 & P0 | Multi-tenant auth, Google IAM, email OTP verification, PBKDF2 passwords, Fernet AES-256 broker encryption, SSE auth |
 | 11 | [11_saas_monetization.md](./11_saas_monetization.md) | Phase 7 & P1 | SaaS monetization, tier gating, Razorpay integration, Redis AI quota rate limiting |
 | 12 | [12_csv_excel_upload.md](./12_csv_excel_upload.md) | Phase 8 & Feature | CSV/XLSX file ingestion, column alias normalization, row validation, UploadSection component, cache invalidation |
-| 13 | [13_prompt_pipeline_remediation.md](./13_prompt_pipeline_remediation.md) | Issue #19 | Portfolio denominator injection, affordable candidate universe pre-filter, single-asset whole-share guard, prompt streamlining |
 
 ---
 
@@ -46,9 +45,7 @@
 | `src/services/analytics_engine.py` | [LLD 02 §2](./02_phase2_analytics_engine.md#2-srcservicesanalytics_enginepy--quantitative-analytics-engine) |
 | `src/services/tax_harvesting.py` | [LLD 02 §3](./02_phase2_analytics_engine.md#3-srcservicestax_harvestingpy--tax-harvesting-analyzer) |
 | `src/services/rebalancer.py` | [LLD 03 §2](./03_phase3_ai_advisory.md#2-srcservicesrebalancerpy--deterministic-rule-engine) |
-| `src/services/llm_advisor.py` | [LLD 03 §3](./03_phase3_ai_advisory.md#3-srcservicesllm_advisorpy--llm-advisory-service), [LLD 05 §5](./05_retry_and_fallback.md#5-llm_advisorpy--gemini--ollama-retry), [LLD 13](./13_prompt_pipeline_remediation.md) |
-| `src/services/market_data.py` | [LLD 02 §1](./02_phase2_analytics_engine.md#1-srcservicesmarket_datapy--market-data-service), [LLD 05 §3](./05_retry_and_fallback.md#3-market_datapy--nsepython--yfinance-retry), [LLD 13 §WS-2](./13_prompt_pipeline_remediation.md) |
-| `prompt1.md` / `Prompt2.md` / `prompt3.md` | [LLD 13 §WS-4](./13_prompt_pipeline_remediation.md) |
+| `src/services/llm_advisor.py` | [LLD 03 §3](./03_phase3_ai_advisory.md#3-srcservicesllm_advisorpy--llm-advisory-service), [LLD 05 §5](./05_retry_and_fallback.md#5-llm_advisorpy--gemini--ollama-retry) |
 | `src/services/file_parser.py` | [LLD 12 §3](./12_csv_excel_upload.md#3-backend-implementation) |
 | `src/api/auth.py` | [LLD 01 §3](./01_phase1_auth_and_holdings.md#3-srcapiauthpy--authentication-router), [LLD 04 §3](./04_logging.md#authpy) |
 | `src/api/holdings.py` | [LLD 01 §4](./01_phase1_auth_and_holdings.md#4-srcapiholdingspy--holdings--portfolio-router), [LLD 04 §3](./04_logging.md#holdingspy), [LLD 12 §3](./12_csv_excel_upload.md#3-backend-implementation) |

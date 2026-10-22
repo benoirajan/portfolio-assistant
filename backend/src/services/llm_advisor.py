@@ -121,8 +121,6 @@ class Stage3Execution(BaseModel):
     risks_to_understand: List[str]
     data_date_verified: str = ""
     simple_action_recommendation: str
-    residual_cash_routing: str = ""  # Where uninvested cash should go (e.g. 'Liquid BeES')
-    is_single_asset_tranche: bool = False  # True when budget <= 10000 and single stock bought
 
 
 # ---------------------------------------------------------------------------
@@ -134,7 +132,6 @@ def _build_stage1_prompt(
     investment_goal: str,
     total_value: float,
     news_context: str,
-    available_cash: float = 0.0,
 ) -> str:
     anonymized = []
     for h in holdings:
@@ -161,11 +158,7 @@ STAGE 1 TASK: Portfolio & Market Diagnosis ONLY. Do NOT decide trade execution o
 INVESTMENT GOAL: {investment_goal}
 INVESTMENT HORIZON: 10+ years (Moderate Risk)
 
-PORTFOLIO TOTAL VALUE: ₹{total_value:,.2f}
-CASH AVAILABLE (uninvested): ₹{available_cash:,.2f}
-CONCENTRATION LIMITS: Single stock ≤ 15% of portfolio | Single sector ≤ 25% of portfolio
-
-CURRENT PORTFOLIO (Holdings with Relative Weights & Ratios):
+CURRENT PORTFOLIO (Anonymized Relative Weights & Ratios):
 {json.dumps(anonymized, indent=2)}
 
 RULE ENGINE FLAGS:
@@ -174,7 +167,7 @@ RULE ENGINE FLAGS:
 LIVE NEWS & MARKET CONTEXT:
 {news_context}
 
-ANALYSIS RULES:
+INVESTMENT-THESIS RULES:
 - This is long-term investing, not short-term trading.
 - Do not predict short-term price movements.
 - Do not automatically consider a stock attractive because its price has fallen or its P/E appears low.
@@ -197,25 +190,10 @@ def _build_stage2_prompt(
     holdings: List[Dict[str, Any]],
     investment_goal: str,
     allow_new_stocks: bool,
-    candidate_universe: Optional[List[Dict[str, Any]]] = None,
 ) -> str:
     existing_symbols = [h.get("tradingsymbol", "") for h in holdings]
-    universe_block = ""
-    if allow_new_stocks and candidate_universe:
-        universe_block = f"""
-PRE-FILTERED AFFORDABLE CANDIDATE UNIVERSE (price-verified against tranche budget):
-{json.dumps(candidate_universe, indent=2)}
-
-CRITICAL: Rank ONLY candidates from the list above or from EXISTING HOLDINGS.
-Do NOT suggest any symbol outside this list — those have been filtered out as unaffordable or illiquid.
-"""
-    elif allow_new_stocks:
-        universe_block = "\nNote: Focus on existing holdings for this cycle (no affordable new candidates identified).\n"
-    else:
-        universe_block = "\nNote: New stocks are disabled for this cycle. Evaluate existing holdings only.\n"
-
     return f"""ROLE: Equity research opportunity analyst for Indian retail investor.
-STAGE 2 TASK: Rank the best investment opportunities from the pre-filtered list. Do NOT allocate ₹ amount or share quantities yet.
+STAGE 2 TASK: Screen & rank top investment opportunities. Do NOT allocate ₹ amount or share quantities yet.
 
 STAGE 1 DIAGNOSIS:
 Overall Quality: {stage1.overall_quality}
@@ -224,8 +202,9 @@ Main Weakness: {stage1.main_weakness}
 Concentration Risk: {stage1.biggest_concentration_risk}
 Future Directions: {', '.join(stage1.future_capital_direction)}
 
-EXISTING HOLDINGS: {', '.join(existing_symbols)}
-{universe_block}
+EXISTING HOLDINGS SYMBOLS: {', '.join(existing_symbols)}
+ALLOW NEW INDIAN EQUITY CANDIDATES: {allow_new_stocks}
+
 INVESTMENT-THESIS RULES:
 - This is long-term investing, not short-term trading.
 - Do not predict short-term price movements.
@@ -234,8 +213,8 @@ INVESTMENT-THESIS RULES:
 - Do not fabricate financial figures.
 
 Instructions:
-1. Compare existing holdings vs candidates in the pre-filtered universe above.
-2. Evaluate incremental portfolio benefit and opportunity cost.
+1. Compare existing holdings vs potential new Indian listed equities.
+2. Evaluate incremental portfolio benefit and opportunity cost ("Which candidate adds the most value at the current portfolio state?").
 3. Classify candidates into 4 conviction tiers:
    - HIGH_CONVICTION
    - GOOD_OPPORTUNITY
@@ -256,38 +235,10 @@ def _build_stage3_prompt(
     investment_schedule: str,
     investment_goal: str,
     candidate_prices: Dict[str, float] = None,
-    total_portfolio_value: float = 0.0,
 ) -> str:
     candidate_prices = candidate_prices or {}
     holding_prices = {h.get("tradingsymbol", ""): h.get("last_price", 0.0) for h in holdings}
     holding_prices.update(candidate_prices)
-
-    # Determine if this is a small tranche requiring the single-asset rule
-    is_small_tranche = total_budget <= 10_000.0
-    small_tranche_rule = ""
-    if is_small_tranche:
-        small_tranche_rule = f"""
-SMALL TRANCHE RULE (MANDATORY — budget ≤ ₹10,000):
-- You MUST allocate to exactly ONE stock — the single highest-conviction affordable candidate.
-- Do NOT split across multiple stocks. A ₹{total_budget:,.0f} split across 2+ stocks creates micro-positions
-  that are immediately loss-making after Indian DP charges (~₹15.93/debit transaction) and STT.
-- Any residual cash after the whole-share purchase MUST be noted in residual_cash_routing
-  (e.g. "Route ₹X to Liquid BeES / overnight fund").
-- Set is_single_asset_tranche = true in the response.
-"""
-
-    portfolio_context = ""
-    if total_portfolio_value > 0:
-        post_trade_note = (
-            f"After this purchase, verify that no single stock exceeds "
-            f"15% of ₹{total_portfolio_value:,.2f} (i.e. ₹{total_portfolio_value * 0.15:,.2f})."
-        )
-        portfolio_context = f"""
-TOTAL PORTFOLIO VALUE: ₹{total_portfolio_value:,.2f}
-POST-TRADE CONCENTRATION LIMIT: Single stock ≤ 15% of total portfolio | Single sector ≤ 25%
-{post_trade_note}
-"""
-
     return f"""ROLE: Portfolio decision support analyst for an Indian retail investor.
 STAGE 3 TASK: Make the final bounded investment decision for today's available budget.
 
@@ -295,7 +246,7 @@ AVAILABLE BUDGET TODAY: ₹{total_budget:,.2f}
 MONTHLY CAPACITY: ₹{monthly_capacity:,.2f}/month
 SCHEDULE FREQUENCY: {investment_schedule}
 INVESTMENT GOAL: {investment_goal}
-{portfolio_context}{small_tranche_rule}
+
 STAGE 1 DIAGNOSIS HIGHLIGHTS:
 Weakness: {stage1.main_weakness}
 Risks: {', '.join(stage1.portfolio_risks[:3])}
@@ -308,14 +259,12 @@ Top Candidates: {json.dumps([o.model_dump() for o in stage2.top_opportunities], 
 CURRENT HOLDING PRICES:
 {json.dumps(holding_prices, indent=2)}
 
-ANALYSIS RULES:
+INVESTMENT-THESIS RULES:
 - This is long-term investing, not short-term trading.
 - Do not predict short-term price movements.
 - Do not automatically consider a stock attractive because its price has fallen or its P/E appears low.
 - Focus on whether the underlying long-term investment thesis remains strong.
 - Do not fabricate financial figures.
-- WAIT is only valid if NO candidate in the pre-filtered universe is purchasable within the available budget
-  AND you specify where idle cash will be routed (residual_cash_routing field).
 
 Decision Rules:
 1. Choose ONE action: BUY (invest full budget), PARTIALLY_INVEST (invest part, keep cash buffer), or WAIT (invest ₹0).
@@ -506,8 +455,7 @@ def run_stage1_diagnosis(
     investment_goal: str = "Moderate Growth",
     max_single_stock_pct: float = 15.0,
     max_sector_pct: float = 25.0,
-    available_cash: float = 0.0,
-) -> tuple[Stage1Diagnosis, List[Dict[str, Any]], str, Optional[str], float]:
+) -> tuple[Stage1Diagnosis, List[Dict[str, Any]], str, Optional[str]]:
     """Executes Stage 1: Portfolio & Market Diagnosis (Prompt 1)."""
     rule_flags = evaluate_rules(holdings, max_single_stock_pct, max_sector_pct)
     total_value = sum(h.get("quantity", 0) * h.get("last_price", 0) for h in holdings)
@@ -523,7 +471,7 @@ def run_stage1_diagnosis(
     stage1_data: Optional[Stage1Diagnosis] = None
 
     if settings.LLM_PROVIDER == "gemini" and settings.GEMINI_API_KEY:
-        p1 = _build_stage1_prompt(holdings, rule_flags, investment_goal, total_value, news_text, available_cash)
+        p1 = _build_stage1_prompt(holdings, rule_flags, investment_goal, total_value, news_text)
         res1 = _call_gemini_schema(p1, Stage1Diagnosis)
         if res1:
             try:
@@ -536,7 +484,7 @@ def run_stage1_diagnosis(
     if not stage1_data:
         stage1_data = _fallback_stage1(holdings, rule_flags)
 
-    return stage1_data, rule_flags, source, llm_provider, total_value
+    return stage1_data, rule_flags, source, llm_provider
 
 
 def run_stage2_screening(
@@ -545,22 +493,11 @@ def run_stage2_screening(
     investment_goal: str = "Moderate Growth",
     allow_new_stocks: bool = True,
     source: str = "llm",
-    total_budget: float = 5000.0,
 ) -> Stage2Ranking:
     """Executes Stage 2: Investment Opportunity Selection & Conviction Matrix (Prompt 2)."""
-    # WS-2: Pre-filter the candidate universe to stocks affordable within the tranche budget
-    candidate_universe: Optional[List[Dict[str, Any]]] = None
-    if allow_new_stocks:
-        candidate_universe = market_data_service.get_affordable_nifty_universe(max_price=total_budget)
-        logger.info(
-            "Stage 2 pre-filter: %d affordable candidates (max_price=₹%.0f)",
-            len(candidate_universe) if candidate_universe else 0,
-            total_budget,
-        )
-
     stage2_data: Optional[Stage2Ranking] = None
     if source == "llm" and settings.LLM_PROVIDER == "gemini" and settings.GEMINI_API_KEY:
-        p2 = _build_stage2_prompt(stage1_data, holdings, investment_goal, allow_new_stocks, candidate_universe)
+        p2 = _build_stage2_prompt(stage1_data, holdings, investment_goal, allow_new_stocks)
         res2 = _call_gemini_schema(p2, Stage2Ranking)
         if res2:
             try:
@@ -590,7 +527,6 @@ def run_stage3_execution(
     investment_schedule: str = "Bi-weekly ₹5,000",
     investment_goal: str = "Moderate Growth",
     source: str = "llm",
-    total_portfolio_value: float = 0.0,
 ) -> Stage3Execution:
     """Executes Stage 3: Bounded Execution Decision & Basket Formulation (Prompt 3)."""
     stage3_data: Optional[Stage3Execution] = None
@@ -603,10 +539,7 @@ def run_stage3_execution(
                     candidate_prices[cand.symbol] = quote["last_price"]
 
     if source == "llm" and settings.LLM_PROVIDER == "gemini" and settings.GEMINI_API_KEY:
-        p3 = _build_stage3_prompt(
-            stage1_data, stage2_data, holdings, total_budget, monthly_capacity,
-            investment_schedule, investment_goal, candidate_prices, total_portfolio_value,
-        )
+        p3 = _build_stage3_prompt(stage1_data, stage2_data, holdings, total_budget, monthly_capacity, investment_schedule, investment_goal, candidate_prices)
         res3 = _call_gemini_schema(p3, Stage3Execution)
         if res3:
             try:
@@ -616,22 +549,6 @@ def run_stage3_execution(
                     stage3_data.cash_to_keep = 0.0
             except Exception as e:
                 logger.error("Stage 3 Pydantic parsing failed: %s", e)
-
-    # WS-3: Post-LLM guard — enforce single-asset rule for small tranches
-    if stage3_data and total_budget <= 10_000.0 and len(stage3_data.purchases) > 1:
-        logger.warning(
-            "Small tranche (₹%.0f) returned %d purchases — trimming to single highest-amount purchase.",
-            total_budget, len(stage3_data.purchases),
-        )
-        best = max(stage3_data.purchases, key=lambda p: p.amount)
-        stage3_data.purchases = [best]
-        stage3_data.allocated_amount = best.amount
-        stage3_data.cash_to_keep = round(total_budget - best.amount, 2)
-        stage3_data.is_single_asset_tranche = True
-        if not stage3_data.residual_cash_routing:
-            stage3_data.residual_cash_routing = (
-                f"Route ₹{stage3_data.cash_to_keep:,.2f} residual to Liquid BeES / overnight fund."
-            )
 
     if not stage3_data:
         stage3_data = _fallback_stage3(stage2_data, holdings, total_budget)
@@ -648,18 +565,16 @@ def get_multi_stage_advisory(
     allow_new_stocks: bool = True,
     max_single_stock_pct: float = 15.0,
     max_sector_pct: float = 25.0,
-    available_cash: float = 0.0,
 ) -> Dict[str, Any]:
     """Executes the complete 3-Stage Prompt Pipeline synchronously."""
-    stage1_data, rule_flags, source, llm_provider, total_portfolio_value = run_stage1_diagnosis(
-        holdings, investment_goal, max_single_stock_pct, max_sector_pct, available_cash
+    stage1_data, rule_flags, source, llm_provider = run_stage1_diagnosis(
+        holdings, investment_goal, max_single_stock_pct, max_sector_pct
     )
     stage2_data = run_stage2_screening(
-        stage1_data, holdings, investment_goal, allow_new_stocks, source, total_budget
+        stage1_data, holdings, investment_goal, allow_new_stocks, source
     )
     stage3_data = run_stage3_execution(
-        stage1_data, stage2_data, holdings, total_budget, monthly_capacity,
-        investment_schedule, investment_goal, source, total_portfolio_value,
+        stage1_data, stage2_data, holdings, total_budget, monthly_capacity, investment_schedule, investment_goal, source
     )
 
     return {
@@ -672,7 +587,6 @@ def get_multi_stage_advisory(
         "llm_provider": llm_provider,
         "total_budget": total_budget,
         "monthly_capacity": monthly_capacity,
-        "total_portfolio_value": total_portfolio_value,
     }
 
 

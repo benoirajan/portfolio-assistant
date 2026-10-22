@@ -161,40 +161,6 @@ class MarketDataService:
         _FUNDAMENTALS_CACHE[clean] = (data, time.time() + _CACHE_TTL_SECONDS)
         return data
 
-    def get_affordable_nifty_universe(self, max_price: float) -> List[Dict[str, Any]]:
-        """Return Nifty 100 stocks whose last known price is within *max_price*.
-
-        Price resolution order (most accurate → fastest fallback):
-        1. Live quote via get_live_quote (real-time, but network-dependent).
-        2. SMA-200 from STOCK_METADATA_DB (static conservative proxy).
-
-        This prevents Stage 2 from recommending stocks that cannot be purchased
-        with the available tranche budget (e.g. MRF @ ₹1.3L for a ₹5,000 tranche).
-        """
-        affordable = []
-        for symbol, meta in STOCK_METADATA_DB.items():
-            # Try live price first; fall back to SMA-200 as a conservative proxy
-            live = self.get_live_quote(symbol)
-            price = (live.get("last_price", 0.0) if live else 0.0) or meta.get("sma_200", 0.0)
-            if price <= 0:
-                continue
-            if price <= max_price:
-                affordable.append({
-                    "symbol": symbol,
-                    "sector": meta.get("sector", "Diversified"),
-                    "cap_category": meta.get("cap_category", "Large Cap"),
-                    "approx_price": round(price, 2),
-                    "pe_ratio": meta.get("pe_ratio", 0.0),
-                    "roe": meta.get("roe", 0.0),
-                })
-        # Sort by price descending (highest-priced affordable stock first — less likely to be trivial)
-        affordable.sort(key=lambda x: x["approx_price"], reverse=True)
-        logger.info(
-            "get_affordable_nifty_universe: %d/%d stocks affordable at max_price=₹%.0f",
-            len(affordable), len(STOCK_METADATA_DB), max_price,
-        )
-        return affordable
-
     def is_valid_nse_symbol(self, symbol: str) -> bool:
         """Validates ticker symbol against known database or live market ticker info."""
         clean = symbol.upper().replace(".NS", "").replace(".BO", "")
