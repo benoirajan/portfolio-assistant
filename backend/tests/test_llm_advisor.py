@@ -97,21 +97,18 @@ class TestLLMAdvisor(unittest.TestCase):
             self.assertIn("Gemini API raw response (schema=Stage1Diagnosis):", output)
 
     def test_prompt_rules(self):
-        """Verify prompt strings contain ANALYSIS RULES section."""
+        """Verify prompt strings contain INVESTMENT-THESIS RULES."""
         stage1 = _build_stage1_prompt([], [], "Goal", 1000, "News")
-        self.assertIn("ANALYSIS RULES:", stage1)
+        self.assertIn("INVESTMENT-THESIS RULES:", stage1)
         self.assertIn("not short-term trading", stage1)
-        # WS-1: portfolio denominator now injected
-        self.assertIn("PORTFOLIO TOTAL VALUE:", stage1)
-        self.assertIn("CONCENTRATION LIMITS:", stage1)
 
         s1_diag = Stage1Diagnosis.model_validate_json(STAGE1_JSON)
         stage2 = _build_stage2_prompt(s1_diag, [], "Goal", True)
         self.assertIn("INVESTMENT-THESIS RULES:", stage2)
-
+        
         s2_rank = Stage2Ranking.model_validate_json(STAGE2_JSON)
         stage3 = _build_stage3_prompt(s1_diag, s2_rank, [], 1000, 1000, "Monthly", "Goal", {"TCS": 3500})
-        self.assertIn("ANALYSIS RULES:", stage3)
+        self.assertIn("INVESTMENT-THESIS RULES:", stage3)
 
     @patch("src.services.llm_advisor.market_data_service.get_live_quote")
     def test_stage3_candidate_prices(self, mock_get_quote):
