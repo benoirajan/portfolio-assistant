@@ -30,10 +30,13 @@ def save_portfolio(
         # Query existing portfolio by user_id (if available) or token_hash
         if user_id:
             stmt = select(Portfolio).where(Portfolio.user_id == user_id).options(selectinload(Portfolio.holdings))
+            portfolio = db.execute(stmt.order_by(Portfolio.updated_at.desc())).scalars().first()
+            if not portfolio and token:
+                stmt_token = select(Portfolio).where(Portfolio.token_hash == token_hash).options(selectinload(Portfolio.holdings))
+                portfolio = db.execute(stmt_token.order_by(Portfolio.updated_at.desc())).scalars().first()
         else:
             stmt = select(Portfolio).where(Portfolio.token_hash == token_hash).options(selectinload(Portfolio.holdings))
-        
-        portfolio = db.execute(stmt).scalar_one_or_none()
+            portfolio = db.execute(stmt.order_by(Portfolio.updated_at.desc())).scalars().first()
 
         if not portfolio:
             portfolio = Portfolio(
@@ -91,10 +94,13 @@ def load_portfolio(
     with get_db_session() as db:
         if user_id:
             stmt = select(Portfolio).where(Portfolio.user_id == user_id).options(selectinload(Portfolio.holdings))
+            portfolio = db.execute(stmt.order_by(Portfolio.updated_at.desc())).scalars().first()
+            if not portfolio and token:
+                stmt_token = select(Portfolio).where(Portfolio.token_hash == token_hash).options(selectinload(Portfolio.holdings))
+                portfolio = db.execute(stmt_token.order_by(Portfolio.updated_at.desc())).scalars().first()
         else:
             stmt = select(Portfolio).where(Portfolio.token_hash == token_hash).options(selectinload(Portfolio.holdings))
-        
-        portfolio = db.execute(stmt).scalar_one_or_none()
+            portfolio = db.execute(stmt.order_by(Portfolio.updated_at.desc())).scalars().first()
 
         if not portfolio:
             return None

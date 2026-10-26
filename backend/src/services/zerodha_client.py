@@ -1,4 +1,3 @@
-import copy
 import logging
 import urllib.parse
 import urllib.request
@@ -8,122 +7,6 @@ from src.core.config import settings
 from src.core.retry import retry_call
 
 logger = logging.getLogger("portfolio_assistant.zerodha_client")
-
-# Sample demo holdings reflecting Indian market equity portfolio
-DEMO_HOLDINGS = [
-    {
-        "tradingsymbol": "RELIANCE",
-        "exchange": "NSE",
-        "instrument_token": 738561,
-        "isin": "INE002A01018",
-        "product": "CNC",
-        "quantity": 50,
-        "average_price": 2450.00,
-        "last_price": 2980.50,
-        "close_price": 2950.00,
-        "pnl": 26525.00,
-        "day_change": 30.50,
-        "day_change_percentage": 1.03,
-        "sector": "Energy & Petrochemicals",
-        "cap_category": "Large Cap"
-    },
-    {
-        "tradingsymbol": "TCS",
-        "exchange": "NSE",
-        "instrument_token": 2953217,
-        "isin": "INE467B01029",
-        "product": "CNC",
-        "quantity": 30,
-        "average_price": 3800.00,
-        "last_price": 4120.00,
-        "close_price": 4150.00,
-        "pnl": 9600.00,
-        "day_change": -30.00,
-        "day_change_percentage": -0.72,
-        "sector": "Information Technology",
-        "cap_category": "Large Cap"
-    },
-    {
-        "tradingsymbol": "HDFCBANK",
-        "exchange": "NSE",
-        "instrument_token": 341249,
-        "isin": "INE040A01034",
-        "product": "CNC",
-        "quantity": 100,
-        "average_price": 1580.00,
-        "last_price": 1640.25,
-        "close_price": 1630.00,
-        "pnl": 6025.00,
-        "day_change": 10.25,
-        "day_change_percentage": 0.63,
-        "sector": "Financial Services",
-        "cap_category": "Large Cap"
-    },
-    {
-        "tradingsymbol": "INFY",
-        "exchange": "NSE",
-        "instrument_token": 408065,
-        "isin": "INE009A01021",
-        "product": "CNC",
-        "quantity": 60,
-        "average_price": 1420.00,
-        "last_price": 1810.00,
-        "close_price": 1795.00,
-        "pnl": 23400.00,
-        "day_change": 15.00,
-        "day_change_percentage": 0.84,
-        "sector": "Information Technology",
-        "cap_category": "Large Cap"
-    },
-    {
-        "tradingsymbol": "TATAMOTORS",
-        "exchange": "NSE",
-        "instrument_token": 884737,
-        "isin": "INE155A01022",
-        "product": "CNC",
-        "quantity": 120,
-        "average_price": 620.00,
-        "last_price": 1015.00,
-        "close_price": 998.00,
-        "pnl": 47400.00,
-        "day_change": 17.00,
-        "day_change_percentage": 1.70,
-        "sector": "Automotive",
-        "cap_category": "Large Cap"
-    },
-    {
-        "tradingsymbol": "LTIM",
-        "exchange": "NSE",
-        "instrument_token": 4514305,
-        "isin": "INE214T01019",
-        "product": "CNC",
-        "quantity": 25,
-        "average_price": 5400.00,
-        "last_price": 5100.00,
-        "close_price": 5150.00,
-        "pnl": -7500.00,
-        "day_change": -50.00,
-        "day_change_percentage": -0.97,
-        "sector": "Information Technology",
-        "cap_category": "Mid Cap"
-    },
-    {
-        "tradingsymbol": "SUNPHARMA",
-        "exchange": "NSE",
-        "instrument_token": 857857,
-        "isin": "INE044A01036",
-        "product": "CNC",
-        "quantity": 45,
-        "average_price": 1150.00,
-        "last_price": 1720.00,
-        "close_price": 1700.00,
-        "pnl": 25650.00,
-        "day_change": 20.00,
-        "day_change_percentage": 1.18,
-        "sector": "Healthcare & Pharma",
-        "cap_category": "Large Cap"
-    }
-]
 
 DEMO_MARGINS = {
     "equity": {
@@ -269,8 +152,16 @@ class ZerodhaService:
 
         return None, last_error
 
-    def get_holdings_with_status(self) -> Tuple[List[Dict[str, Any]], bool, Optional[str]]:
-        """Returns (holdings_list, is_live_data, error_message)"""
+    def get_holdings_with_status(self, user_id: Optional[str] = None) -> Tuple[List[Dict[str, Any]], bool, Optional[str]]:
+        """Returns (holdings_list, is_live_data, error_message).
+        
+        Priority:
+        1. Zerodha Live API (via enctoken or KiteConnect)
+        2. Historical holdings from DB (tenant-isolated by user_id or token)
+        3. Empty list if unavailable (never returns fabricated/demo holdings)
+        """
+        last_error = None
+
         # 1. Enctoken Free Live Sync
         if self.enctoken:
             json_data, err_msg = self._make_enctoken_request("/portfolio/holdings")
@@ -285,7 +176,7 @@ class ZerodhaService:
             else:
                 formatted_err = f"Zerodha Enctoken Error ({err_msg}). Ensure you copied the active 'enctoken' cookie string from kite.zerodha.com."
                 logger.error(formatted_err)
-                return DEMO_HOLDINGS, False, formatted_err
+                last_error = formatted_err
 
         # 2. Official KiteConnect Client
         if self.access_token and self.kite_client:
@@ -300,20 +191,28 @@ class ZerodhaService:
             except Exception as e:
                 err_msg = f"KiteConnect error: {str(e)}"
                 logger.error(err_msg)
-                return DEMO_HOLDINGS, False, err_msg
+                last_error = err_msg
 
-        # 3. Fallback Demo — enrich with live LTP from yfinance
-        from src.services.market_data import market_data_service
-        holdings = copy.deepcopy(DEMO_HOLDINGS)
-        for h in holdings:
-            quote = market_data_service.get_live_quote(h["tradingsymbol"])
-            if quote:
-                h.update(quote)
-                h["pnl"] = round((h["last_price"] - h["average_price"]) * h["quantity"], 2)
-        return holdings, False, None
+        # 3. Fallback to DB history if live Zerodha sync is unavailable
+        try:
+            from src.services.portfolio_repository import load_portfolio
+            token_key = self.enctoken or (f"user_{user_id}" if user_id else "")
+            persisted = load_portfolio(token_key, user_id=user_id)
+            if persisted and persisted.get("holdings"):
+                logger.info(
+                    "Retrieved %d historical holdings from database (user_id=%s)",
+                    len(persisted["holdings"]),
+                    user_id,
+                )
+                return persisted["holdings"], False, last_error
+        except Exception as db_err:
+            logger.warning("Failed to load historical holdings from database: %s", db_err)
 
-    def get_holdings(self) -> List[Dict[str, Any]]:
-        holdings, _, _ = self.get_holdings_with_status()
+        # 4. If neither live Zerodha nor DB history is available, return empty list
+        return [], False, last_error
+
+    def get_holdings(self, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        holdings, _, _ = self.get_holdings_with_status(user_id=user_id)
         return holdings
 
     def get_positions(self) -> Dict[str, Any]:

@@ -41,7 +41,6 @@ Single `Settings` class loaded from `.env` via `python-dotenv`.
 
 | Constant | Purpose |
 |---|---|
-| `DEMO_HOLDINGS` | 7 realistic NSE equity holdings used when no live token is available |
 | `DEMO_MARGINS` | Sample equity margin structure matching Zerodha API response shape |
 
 ### 2.2 `ZerodhaService` — Class
@@ -140,7 +139,7 @@ Returns (None, last_error_message)
 
 ---
 
-#### `get_holdings_with_status() -> Tuple[List[Dict], bool, Optional[str]]`
+#### `get_holdings_with_status(user_id: Optional[str] = None) -> Tuple[List[Dict], bool, Optional[str]]`
 
 Main holdings fetch with three-tier fallback. Returns `(holdings, is_live, error_message)`.
 
@@ -148,11 +147,9 @@ Main holdings fetch with three-tier fallback. Returns `(holdings, is_live, error
 |---|---|---|
 | 1 | `self.enctoken` set | Calls `_make_enctoken_request("/portfolio/holdings")`. Infers missing `sector` and `cap_category` fields. |
 | 2 | `self.access_token` + `kite_client` | Calls `kite_client.holdings()`. Infers missing fields. |
-| 3 | Fallback | Returns `DEMO_HOLDINGS` enriched with live LTP via `market_data_service.get_live_quote()`, `is_live=False`, `error_message=None` |
+| 3 | Fallback | Re-hydrates historical holdings from PostgreSQL database via `load_portfolio()`, tenant-isolated by `user_id` or `token`. If no historical data exists, returns empty list `[]`, `is_live=False`. No made-up or demo holdings are ever returned. |
 
-On enctoken failure: returns demo holdings (with live LTP if available), `is_live=False`, and a formatted error message instructing the user to re-copy their enctoken.
-
-**Demo mode live quote enrichment:** Even in demo mode, `last_price`, `close_price`, `day_change`, and `day_change_percentage` are refreshed from yfinance (`.NS`) for each symbol. `pnl` is recomputed from the live `last_price`. Falls back to hardcoded values silently if yfinance is unavailable.
+On enctoken failure or missing broker credentials: falls back to historical holdings from the database (`is_live=False`). If database history is also absent, returns an empty list (`[]`) along with the diagnostic error message.
 
 ---
 
