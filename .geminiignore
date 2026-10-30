@@ -1,0 +1,4 @@
+# AI exclusion rules
+.env
+.env.*
+*.env

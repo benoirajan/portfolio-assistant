@@ -15,6 +15,9 @@ try:
 except ImportError:
     pass
 
+def _require(name: str) -> str:
+    raise ValueError(f"Required env var '{name}' is not set. Refusing to start.")
+
 class Settings:
     KITE_API_KEY: str = os.getenv("KITE_API_KEY", "")
     KITE_API_SECRET: str = os.getenv("KITE_API_SECRET", "")
@@ -29,10 +32,10 @@ class Settings:
     GOOGLE_CLIENT_SECRET: str = os.getenv("GOOGLE_CLIENT_SECRET", "")
 
     # Security, JWT & Encryption (Fernet AES-256)
-    JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "portfolio-assistant-jwt-secret-key-2026-production-grade")
+    JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY") or _require("JWT_SECRET_KEY")
     JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))  # 24 hours
-    ENCRYPTION_SECRET_KEY: str = os.getenv("ENCRYPTION_SECRET_KEY", "vXz7e9K3N4P1Q8R6T2U5W7Y9A1B3C5E7G9I1K3M5O7Q=")  # 32-byte Fernet key
+    ENCRYPTION_SECRET_KEY: str = os.getenv("ENCRYPTION_SECRET_KEY") or _require("ENCRYPTION_SECRET_KEY")
 
     # Phase 3 — LLM Advisory
     LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "gemini")  # "gemini" | "ollama"
