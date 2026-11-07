@@ -74,7 +74,7 @@ def _get_fernet() -> Fernet:
     """Returns a Fernet instance keyed with ENCRYPTION_SECRET_KEY."""
     raw_key = settings.ENCRYPTION_SECRET_KEY
     if not raw_key:
-        raw_key = "vXz7e9K3N4P1Q8R6T2U5W7Y9A1B3C5E7G9I1K3M5O7Q="
+        raise RuntimeError("ENCRYPTION_SECRET_KEY is required and must not be empty")
     try:
         return Fernet(raw_key.encode() if isinstance(raw_key, str) else raw_key)
     except Exception:

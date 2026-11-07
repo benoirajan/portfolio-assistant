@@ -10,3 +10,7 @@ For all conversations and agent tasks in this repository, the following protocol
 ### 2. Manage Tasks & Issues via GitHub Issues
 - Tasks, backlogs, and completion tracking are managed directly via GitHub Issues ([Issues Tracker](https://github.com/benoirajan/portfolio-assistant/issues)).
 - When finishing a task that has a corresponding GitHub issue, close or comment on the issue with the completion summary (including architectural rationale, implementation details, and verification results).
+
+### 3. Security & Sensitive File Policy
+- **Strictly Disallowed**: NEVER read, view, print, grep, or edit any `.env` or `.env.*` files.
+- If environment variables or configurations are needed, refer strictly to `.env.example` or prompt the user for variable keys.

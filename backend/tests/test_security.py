@@ -76,6 +76,19 @@ class TestSecurityModule(unittest.TestCase):
         self.assertEqual(result.get("sub"), "google_sub_123")
         self.assertTrue(result.get("email_verified"))
 
+    def test_require_raises_on_missing_env(self):
+        from src.core.config import _require
+        with self.assertRaises(ValueError) as ctx:
+            _require("TEST_UNSET_VAR")
+        self.assertIn("Required env var 'TEST_UNSET_VAR' is not set", str(ctx.exception))
+
+    def test_fernet_raises_when_encryption_key_empty(self):
+        from src.core.security import _get_fernet
+        with patch("src.core.security.settings.ENCRYPTION_SECRET_KEY", ""):
+            with self.assertRaises(RuntimeError) as ctx:
+                _get_fernet()
+            self.assertIn("ENCRYPTION_SECRET_KEY is required", str(ctx.exception))
+
 if __name__ == "__main__":
     unittest.main()
 

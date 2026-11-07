@@ -43,10 +43,10 @@ export default function TaxTab({ tax, isGated = false, onUpgradeClick }: Props) 
             {onUpgradeClick && (
               <button
                 onClick={onUpgradeClick}
-                className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-amber-400 hover:bg-amber-300 text-black font-semibold text-xs rounded-xl shadow-md transition-all cursor-pointer"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-semibold text-xs rounded-xl shadow-sm transition-all cursor-pointer"
               >
-                <ArrowUpCircle size={15} />
-                <span>Upgrade to Pro (₹299/mo)</span>
+                <Sparkles size={15} />
+                <span>PRO Feature — Coming Soon</span>
               </button>
             )}
           </div>
