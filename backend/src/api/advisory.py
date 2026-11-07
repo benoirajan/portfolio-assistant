@@ -46,8 +46,10 @@ def recommendations(
     effective_token = x_enctoken or get_user_enctoken(current_user.id) or settings.ZERODHA_ENCTOKEN or ""
     if effective_token:
         zerodha_service.set_enctoken(effective_token)
+    else:
+        zerodha_service.set_enctoken("")
 
-    raw_holdings, _, _ = zerodha_service.get_holdings_with_status()
+    raw_holdings, _, _ = zerodha_service.get_holdings_with_status(user_id=current_user.id)
     enriched = market_data_service.enrich_holdings_with_fundamentals(raw_holdings)
     logger.debug("Enriched %d holdings for advisory (user=%s)", len(enriched), current_user.id)
 
@@ -94,8 +96,10 @@ def multi_stage_pipeline(
     effective_token = x_enctoken or get_user_enctoken(current_user.id) or settings.ZERODHA_ENCTOKEN
     if effective_token:
         zerodha_service.set_enctoken(effective_token)
+    else:
+        zerodha_service.set_enctoken("")
 
-    raw_holdings, _, _ = zerodha_service.get_holdings_with_status()
+    raw_holdings, _, _ = zerodha_service.get_holdings_with_status(user_id=current_user.id)
     enriched = market_data_service.enrich_holdings_with_fundamentals(raw_holdings)
 
     return get_multi_stage_advisory(
@@ -128,6 +132,8 @@ async def stream_advisory_pipeline(
     effective_token = x_enctoken or get_user_enctoken(current_user.id) or settings.ZERODHA_ENCTOKEN
     if effective_token:
         zerodha_service.set_enctoken(effective_token)
+    else:
+        zerodha_service.set_enctoken("")
 
     async def event_generator():
         loop = asyncio.get_event_loop()
@@ -135,10 +141,10 @@ async def stream_advisory_pipeline(
         # --- STAGE 1: Diagnosis (Prompt 1) ---
         yield f"data: {json.dumps({'stage': 1, 'status': 'running', 'message': '🔍 Stage 1: Auditing portfolio exposure & live market news...' })}\n\n"
 
-        raw_holdings, _, _ = zerodha_service.get_holdings_with_status()
+        raw_holdings, _, _ = zerodha_service.get_holdings_with_status(user_id=current_user.id)
         enriched = market_data_service.enrich_holdings_with_fundamentals(raw_holdings)
 
-        stage1_data, rule_flags, source, llm_provider = await loop.run_in_executor(
+        stage1_data, rule_flags, source, llm_provider, total_portfolio_value = await loop.run_in_executor(
             None,
             lambda: run_stage1_diagnosis(
                 enriched,
@@ -161,6 +167,7 @@ async def stream_advisory_pipeline(
                 investment_goal=investment_goal,
                 allow_new_stocks=allow_new_stocks,
                 source=source,
+                total_budget=total_budget,
             )
         )
 
@@ -180,6 +187,7 @@ async def stream_advisory_pipeline(
                 investment_schedule=investment_schedule,
                 investment_goal=investment_goal,
                 source=source,
+                total_portfolio_value=total_portfolio_value,
             )
         )
 
@@ -193,6 +201,7 @@ async def stream_advisory_pipeline(
             "llm_provider": llm_provider,
             "total_budget": total_budget,
             "monthly_capacity": monthly_capacity,
+            "total_portfolio_value": total_portfolio_value,
         }
 
         yield f"data: {json.dumps({'stage': 3, 'status': 'complete', 'data': stage3_data.model_dump(), 'full_result': full_result, 'message': '✅ Stage 3: Execution decision complete!' })}\n\n"
@@ -235,8 +244,10 @@ def create_basket(
     effective_token = x_enctoken or get_user_enctoken(current_user.id) or settings.ZERODHA_ENCTOKEN
     if effective_token:
         zerodha_service.set_enctoken(effective_token)
+    else:
+        zerodha_service.set_enctoken("")
 
-    raw_holdings, _, _ = zerodha_service.get_holdings_with_status()
+    raw_holdings, _, _ = zerodha_service.get_holdings_with_status(user_id=current_user.id)
     price_map = {
         h["tradingsymbol"]: {
             "last_price": h.get("last_price", 0.0),

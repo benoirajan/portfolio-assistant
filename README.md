@@ -77,10 +77,14 @@ See [backend/README.md](./backend/README.md) for full setup instructions.
 
 ```bash
 cd backend
-python -m venv .venv && source .venv/bin/activate   # Linux/macOS
+#Linux/macOS
+python -m venv .venv 
+source .venv/bin/activate   
 # or: .venv\Scripts\activate                         # Windows
 pip install -r requirements.txt
 python -m uvicorn src.main:app --host 127.0.0.1 --port 8000 --reload
+# or use
+./run_dev.sh
 ```
 
 ### 3. Frontend
@@ -95,6 +99,22 @@ npm run dev
 - Backend API + Swagger UI: http://127.0.0.1:8000/docs
 - Frontend: http://localhost:3000
 - Redis Cache Server: `redis://localhost:6379/0`
+
+### 4. Live End-to-End Testing (Non-Unit Test Full Stack)
+Run browser-driven live end-to-end tests across Landing Page, Authentication, Holdings, Sector Allocation, Quantitative Performance, Tax-Loss Harvesting, and 3-Stage AI Advisory:
+
+```bash
+# From repository root:
+./test_live_e2e.sh
+
+# Or from frontend/:
+cd frontend && npm run test:e2e
+
+# Or in chat with Antigravity:
+"run live e2e" or "test live"
+```
+
+Screenshots and execution logs are captured automatically in `.reports/e2e_screenshots/`.
 
 ### 🌐 Live Production Deployment
 - **Frontend App:** [https://portfolio-assistant-rouge.vercel.app](https://portfolio-assistant-rouge.vercel.app)

@@ -44,21 +44,24 @@ def get_holdings(
 
         if effective_token:
             zerodha_service.set_enctoken(effective_token)
-            raw_holdings, is_live, error_msg = zerodha_service.get_holdings_with_status()
         else:
-            raw_holdings, is_live, error_msg = [], False, "No broker credentials connected. Please connect your Zerodha account in Settings."
+            zerodha_service.set_enctoken("")
+
+        raw_holdings, is_live, error_msg = zerodha_service.get_holdings_with_status(user_id=current_user.id)
+        if not effective_token and not raw_holdings and not error_msg:
+            error_msg = "No broker credentials connected. Please connect your Zerodha account in Settings."
 
         # If live fetch is unavailable, attempt to re-hydrate user's saved portfolio from database
         if not is_live:
             persisted = load_portfolio(token_identifier, user_id=current_user.id)
-            if persisted:
+            if persisted and persisted.get("holdings"):
                 logger.info("Holdings re-hydrated from database storage for user %s", current_user.id)
                 cache.set(cache_key, persisted, ttl=settings.HOLDINGS_CACHE_TTL)
                 return persisted
 
-            if not effective_token:
+            if not raw_holdings:
                 return {
-                    "status": "warning",
+                    "status": "warning" if error_msg else "success",
                     "is_live": False,
                     "error_message": error_msg,
                     "summary": {

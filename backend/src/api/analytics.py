@@ -22,11 +22,15 @@ def get_portfolio_fundamentals(
     """Returns holdings enriched with fundamental ratios for authenticated user."""
     try:
         effective_token = x_enctoken or get_user_enctoken(current_user.id) or settings.ZERODHA_ENCTOKEN
-        if not effective_token:
-            return {"status": "warning", "holdings": [], "error_message": "No broker connected"}
+        if effective_token:
+            zerodha_service.set_enctoken(effective_token)
+        else:
+            zerodha_service.set_enctoken("")
 
-        zerodha_service.set_enctoken(effective_token)
-        holdings = zerodha_service.get_holdings()
+        holdings = zerodha_service.get_holdings(user_id=current_user.id)
+        if not holdings:
+            return {"status": "warning", "holdings": [], "error_message": "No broker connected and no holdings found in database"}
+
         enriched = market_data_service.enrich_holdings_with_fundamentals(holdings)
         logger.info("Fundamentals fetched for user %s — %d holdings enriched", current_user.id, len(enriched))
         return {"status": "success", "holdings": enriched}
@@ -43,7 +47,13 @@ def get_portfolio_performance_metrics(
     """Returns XIRR, Sharpe Ratio, Sortino Ratio, Beta, and Herfindahl index for authenticated user."""
     try:
         effective_token = x_enctoken or get_user_enctoken(current_user.id) or settings.ZERODHA_ENCTOKEN
-        if not effective_token:
+        if effective_token:
+            zerodha_service.set_enctoken(effective_token)
+        else:
+            zerodha_service.set_enctoken("")
+
+        holdings = zerodha_service.get_holdings(user_id=current_user.id)
+        if not holdings:
             return {
                 "status": "warning",
                 "metrics": {
@@ -54,11 +64,9 @@ def get_portfolio_performance_metrics(
                     "cagr_percentage": 0.0,
                     "herfindahl_index": 0.0,
                 },
-                "error_message": "No broker connected",
+                "error_message": "No broker connected and no holdings found in database",
             }
 
-        zerodha_service.set_enctoken(effective_token)
-        holdings = zerodha_service.get_holdings()
         enriched = market_data_service.enrich_holdings_with_fundamentals(holdings)
         trades = zerodha_service.get_trades()
         metrics = analytics_engine.calculate_portfolio_metrics(enriched, trades=trades)
@@ -82,7 +90,13 @@ def get_tax_harvesting_analysis(
     """
     try:
         effective_token = x_enctoken or get_user_enctoken(current_user.id) or settings.ZERODHA_ENCTOKEN
-        if not effective_token:
+        if effective_token:
+            zerodha_service.set_enctoken(effective_token)
+        else:
+            zerodha_service.set_enctoken("")
+
+        holdings = zerodha_service.get_holdings(user_id=current_user.id)
+        if not holdings:
             return {
                 "status": "warning",
                 "tax_analysis": {
@@ -90,11 +104,9 @@ def get_tax_harvesting_analysis(
                     "net_ltcg": 0.0,
                     "harvestable_loss_candidates": [],
                 },
-                "error_message": "No broker connected",
+                "error_message": "No broker connected and no holdings found in database",
             }
 
-        zerodha_service.set_enctoken(effective_token)
-        holdings = zerodha_service.get_holdings()
         analysis = tax_harvesting_analyzer.analyze_tax_harvesting(holdings)
         logger.info("Tax analysis for user %s — stcg=%.2f ltcg=%.2f candidates=%d",
                     current_user.id, analysis.get("net_stcg", 0), analysis.get("net_ltcg", 0),

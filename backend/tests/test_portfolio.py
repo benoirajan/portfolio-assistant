@@ -330,6 +330,87 @@ class TestPortfolioPersistenceComprehensive(unittest.TestCase):
             settings.ZERODHA_ENCTOKEN = orig_enctoken
             zerodha_service.set_enctoken(orig_service_token)
 
+    def test_holdings_fallback_to_db_history(self):
+        """Verify zerodha_service returns DB history when Zerodha live sync is unavailable."""
+        from src.services.zerodha_client import zerodha_service
+
+        with get_db_session() as db:
+            user = User(email="history_user@example.com", full_name="History User", tier="FREE")
+            db.add(user)
+            db.flush()
+            user_id = user.id
+
+        # Save historical portfolio for user in DB
+        save_portfolio(
+            token="dummy_token",
+            portfolio_data={
+                "summary": {"total_investment": 50000.0, "current_value": 55000.0},
+                "holdings": [
+                    {"tradingsymbol": "INFY", "quantity": 25, "average_price": 1400.0, "last_price": 1500.0, "sector": "IT"}
+                ]
+            },
+            user_id=user_id
+        )
+
+        orig_token = zerodha_service.enctoken
+        try:
+            # Set invalid enctoken to force Zerodha failure
+            zerodha_service.set_enctoken("invalid_enctoken_xyz")
+            holdings, is_live, err_msg = zerodha_service.get_holdings_with_status(user_id=user_id)
+
+            self.assertFalse(is_live)
+            self.assertEqual(len(holdings), 1)
+            self.assertEqual(holdings[0]["tradingsymbol"], "INFY")
+            self.assertIsNotNone(err_msg)
+        finally:
+            zerodha_service.set_enctoken(orig_token or "")
+
+    def test_holdings_return_empty_when_no_zerodha_and_no_db(self):
+        """Verify zerodha_service returns empty list (no made-up demo values) when both live and DB are unavailable."""
+        from src.services.zerodha_client import zerodha_service
+
+        with get_db_session() as db:
+            user = User(email="empty_user@example.com", full_name="Empty User", tier="FREE")
+            db.add(user)
+            db.flush()
+            user_id = user.id
+
+        orig_token = zerodha_service.enctoken
+        try:
+            # Invalid enctoken and no DB history for this user
+            zerodha_service.set_enctoken("invalid_token_123")
+            holdings, is_live, err_msg = zerodha_service.get_holdings_with_status(user_id=user_id)
+
+            self.assertFalse(is_live)
+            self.assertEqual(holdings, [])
+            self.assertIsNotNone(err_msg)
+
+            # Also verify get_holdings() returns empty list
+            direct_holdings = zerodha_service.get_holdings(user_id=user_id)
+            self.assertEqual(direct_holdings, [])
+        finally:
+            zerodha_service.set_enctoken(orig_token or "")
+
+    def test_holdings_api_returns_empty_when_no_zerodha_and_no_db(self):
+        """Verify GET /api/v1/holdings returns empty holdings rather than demo values when no live/DB data exists."""
+        from src.core.security import create_access_token
+
+        with get_db_session() as db:
+            user = User(email="api_empty_user@example.com", full_name="API Empty User", tier="FREE")
+            db.add(user)
+            db.flush()
+            user_id = user.id
+
+        auth_token = create_access_token({"sub": user_id, "email": "api_empty_user@example.com", "tier": "FREE"})
+        auth_headers = {"Authorization": f"Bearer {auth_token}", "X-Enctoken": "invalid_cookie_token"}
+
+        res = self.client.get("/api/v1/holdings", headers=auth_headers)
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertFalse(data["is_live"])
+        self.assertEqual(data["holdings"], [])
+        self.assertEqual(data["summary"]["total_holdings_count"], 0)
+        self.assertEqual(data["summary"]["current_value"], 0.0)
 
 
 if __name__ == "__main__":
