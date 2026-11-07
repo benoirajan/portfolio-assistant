@@ -61,6 +61,11 @@ export default function PricingModal({
 
   const handleUpgrade = async (targetTier: string) => {
     setError(null)
+    const isComingSoon = plans.find((p) => p.tier === targetTier)?.coming_soon ?? (targetTier !== 'FREE')
+    if (isComingSoon) {
+      setError('Paid subscription plans are coming soon! Upgrades are temporarily disabled.')
+      return
+    }
     setUpgradingTier(targetTier)
     try {
       const orderRes = await createBillingOrder(targetTier)
@@ -166,18 +171,23 @@ export default function PricingModal({
             : plans.map((plan) => {
                 const isCurrent = plan.tier === currentTier
                 const isUpgrading = upgradingTier === plan.tier
+                const isComingSoon = plan.coming_soon ?? (plan.tier !== 'FREE')
 
                 return (
                   <div
                     key={plan.tier}
                     className={`relative flex flex-col rounded-xl border bg-[var(--bg)] p-5 transition-all ${TIER_BORDER[plan.tier]}`}
                   >
-                    {/* Popular badge */}
-                    {plan.highlight && (
+                    {/* Badge */}
+                    {isComingSoon && !isCurrent ? (
+                      <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-blue-500/20 text-blue-400 border border-blue-500/30 text-[10px] font-bold rounded-full uppercase tracking-wider shadow">
+                        Coming Soon
+                      </span>
+                    ) : plan.highlight ? (
                       <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-amber-400 text-black text-[10px] font-bold rounded-full uppercase tracking-wider shadow">
                         Most Popular
                       </span>
-                    )}
+                    ) : null}
 
                     {/* Tier header */}
                     <div className="flex items-center gap-2 mb-3">
@@ -214,6 +224,13 @@ export default function PricingModal({
                       <div className="text-center text-xs font-semibold text-[var(--muted)] py-2 border border-[var(--border)] rounded-lg">
                         Current Plan
                       </div>
+                    ) : isComingSoon ? (
+                      <button
+                        disabled
+                        className="w-full py-2 text-xs font-semibold rounded-lg bg-[var(--surface-hover)] border border-[var(--border)] text-[var(--muted)] opacity-60 cursor-not-allowed"
+                      >
+                        Coming Soon
+                      </button>
                     ) : plan.price_inr === 0 ? (
                       <div className="text-center text-xs text-[var(--muted)] py-2">
                         Default
@@ -240,9 +257,7 @@ export default function PricingModal({
 
         {/* Footer note */}
         <div className="px-6 pb-5 text-center text-[10px] text-[var(--muted)]">
-          {process.env.NEXT_PUBLIC_RAZORPAY_MOCK === 'true'
-            ? '⚠️ Mock payment mode — no real charges will be made.'
-            : 'Payments are processed securely via Razorpay. Cancel anytime.'}
+          Paid subscription plans are launching soon. All core analytics & free features are active.
         </div>
       </div>
     </div>

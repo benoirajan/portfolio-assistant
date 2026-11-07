@@ -39,8 +39,8 @@ class Settings:
 
     # Phase 3 — LLM Advisory
     LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "gemini")  # "gemini" | "ollama"
-    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY")
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL")
     OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
     OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "mistral")
     # Database (Supabase PostgreSQL / Local Postgres)
@@ -49,13 +49,13 @@ class Settings:
     DB_MAX_OVERFLOW: int = int(os.getenv("DB_MAX_OVERFLOW", "10"))
     DB_ECHO: bool = os.getenv("DB_ECHO", "false").lower() in ("true", "1", "t")
     # Cache (Upstash Redis / Local Redis)
-    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    REDIS_URL: str = os.getenv("REDIS_URL")
     HOLDINGS_CACHE_TTL: int = int(os.getenv("HOLDINGS_CACHE_TTL", "300"))   # 5 min
     ADVISORY_CACHE_TTL: int = int(os.getenv("ADVISORY_CACHE_TTL", "1800"))  # 30 min
 
     # Phase 7 — SaaS Monetization (Razorpay)
-    # Set RAZORPAY_MOCK_MODE=true to stub payments locally without a Razorpay account.
-    RAZORPAY_MOCK_MODE: bool = os.getenv("RAZORPAY_MOCK_MODE", "true").lower() in ("true", "1", "t")
+    # Mock mode disabled by default to prevent unauthorized tier upgrades on public deployments.
+    RAZORPAY_MOCK_MODE: bool = os.getenv("RAZORPAY_MOCK_MODE", "false").lower() in ("true", "1", "t")
     RAZORPAY_KEY_ID: str = os.getenv("RAZORPAY_KEY_ID", "rzp_test_MOCK_KEY")
     RAZORPAY_KEY_SECRET: str = os.getenv("RAZORPAY_KEY_SECRET", "mock_secret")
     RAZORPAY_WEBHOOK_SECRET: str = os.getenv("RAZORPAY_WEBHOOK_SECRET", "mock_webhook_secret")

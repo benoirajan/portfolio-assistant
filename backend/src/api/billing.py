@@ -60,6 +60,7 @@ TIER_DEFINITIONS = [
             "Holdings & sector breakdown",
         ],
         "highlight": False,
+        "coming_soon": False,
     },
     {
         "tier": "PRO",
@@ -72,9 +73,9 @@ TIER_DEFINITIONS = [
             "3-Stage AI Advisory Pipeline",
             "Tax-loss harvesting analysis",
             "1-click Zerodha basket export",
-            # TODO: Multi-broker support (future — track in todo_tomorrow_tasks.md)
         ],
         "highlight": True,  # Most popular — shown with a CTA badge in UI
+        "coming_soon": True,
     },
     {
         "tier": "ELITE",
@@ -88,6 +89,7 @@ TIER_DEFINITIONS = [
             "Early access to new features",
         ],
         "highlight": False,
+        "coming_soon": True,
     },
 ]
 
@@ -150,9 +152,11 @@ def _verify_razorpay_signature(
     order_id: str, payment_id: str, signature: str
 ) -> bool:
     """Verifies Razorpay HMAC-SHA256 payment signature."""
-    if settings.RAZORPAY_MOCK_MODE:
-        # Accept any signature in mock mode
-        return True
+    # Temporarily commented out mock mode to prevent unauthorized tier upgrades
+    # if settings.RAZORPAY_MOCK_MODE:
+    #     return True
+    if not settings.RAZORPAY_KEY_SECRET or settings.RAZORPAY_KEY_SECRET == "mock_secret":
+        return False
     msg = f"{order_id}|{payment_id}"
     expected = hmac.new(
         settings.RAZORPAY_KEY_SECRET.encode("utf-8"),
@@ -164,8 +168,11 @@ def _verify_razorpay_signature(
 
 def _verify_webhook_signature(body_bytes: bytes, signature: str) -> bool:
     """Verifies Razorpay webhook HMAC-SHA256 signature."""
-    if settings.RAZORPAY_MOCK_MODE:
-        return True
+    # Temporarily commented out mock mode to prevent unauthorized tier upgrades
+    # if settings.RAZORPAY_MOCK_MODE:
+    #     return True
+    if not settings.RAZORPAY_WEBHOOK_SECRET or settings.RAZORPAY_WEBHOOK_SECRET == "mock_webhook_secret":
+        return False
     expected = hmac.new(
         settings.RAZORPAY_WEBHOOK_SECRET.encode("utf-8"),
         body_bytes,
@@ -242,8 +249,8 @@ def create_order(
 ):
     """Creates a Razorpay payment order for a tier upgrade.
 
-    In mock mode (RAZORPAY_MOCK_MODE=true) returns a synthetic order ID so the
-    full checkout flow can be tested locally without a Razorpay account.
+    Temporarily disabled: Paid plans (PRO / ELITE) are coming soon, so mock
+    mode and real orders are paused to protect tier access.
     """
     target_tier = payload.target_tier.upper()
     if target_tier not in ("PRO", "ELITE"):
@@ -252,41 +259,11 @@ def create_order(
             detail="target_tier must be PRO or ELITE",
         )
 
-    if target_tier == (current_user.tier or "FREE").upper():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"You are already on the {target_tier} plan.",
-        )
-
-    amount_paise = settings.TIER_PRICE_PAISE.get(target_tier, 0)
-
-    try:
-        if settings.RAZORPAY_MOCK_MODE:
-            logger.info(
-                "Mock Razorpay order for user=%s tier=%s amount=%d paise",
-                current_user.id,
-                target_tier,
-                amount_paise,
-            )
-            order = _mock_create_order(target_tier, amount_paise)
-        else:
-            order = _real_create_order(target_tier, amount_paise)
-    except Exception as exc:
-        logger.error("Razorpay order creation failed: %s", exc, exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Payment gateway error: {exc}",
-        )
-
-    return {
-        "status": "success",
-        "razorpay_order_id": order["id"],
-        "amount": order["amount"],
-        "currency": order.get("currency", "INR"),
-        "key_id": settings.RAZORPAY_KEY_ID,
-        "mock_mode": settings.RAZORPAY_MOCK_MODE,
-        "target_tier": target_tier,
-    }
+    # Paid plans are coming soon; upgrades are temporarily disabled
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail=f"Paid subscription plans ({target_tier}) are coming soon! Upgrades via the app are temporarily disabled.",
+    )
 
 
 @router.post("/verify-payment")
@@ -296,8 +273,8 @@ def verify_payment(
 ):
     """Verifies Razorpay payment HMAC signature and upgrades the user's tier.
 
-    In mock mode, any non-empty signature is accepted so the flow can be tested
-    end-to-end without real Razorpay keys.
+    Temporarily disabled: Paid plans (PRO / ELITE) are coming soon, so mock
+    mode and real orders are paused to protect tier access.
     """
     target_tier = payload.target_tier.upper()
     if target_tier not in ("PRO", "ELITE"):
@@ -306,37 +283,11 @@ def verify_payment(
             detail="target_tier must be PRO or ELITE",
         )
 
-    sig_valid = _verify_razorpay_signature(
-        payload.razorpay_order_id,
-        payload.razorpay_payment_id,
-        payload.razorpay_signature,
+    # Paid plans are coming soon; upgrades are temporarily disabled
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail=f"Paid subscription plans ({target_tier}) are coming soon! Upgrades via the app are temporarily disabled.",
     )
-    if not sig_valid:
-        logger.warning(
-            "Invalid Razorpay signature — user=%s order=%s",
-            current_user.id,
-            payload.razorpay_order_id,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Payment signature verification failed. Transaction may be tampered.",
-        )
-
-    with get_db_session() as db:
-        _upgrade_user_tier(
-            db,
-            current_user,
-            target_tier,
-            payload.razorpay_order_id,
-            payload.razorpay_payment_id,
-        )
-
-    return {
-        "status": "success",
-        "message": f"Congratulations! Your plan has been upgraded to {target_tier}.",
-        "tier": target_tier,
-        "mock_mode": settings.RAZORPAY_MOCK_MODE,
-    }
 
 
 @router.get("/status", response_model=BillingStatusResponse)

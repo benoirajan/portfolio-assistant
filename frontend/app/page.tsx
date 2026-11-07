@@ -596,9 +596,9 @@ export default function LandingPage() {
             </div>
 
             {/* Pro Plan (Highlighted) */}
-            <div className="relative rounded-2xl border-2 border-amber-400 bg-[var(--bg)] p-6 sm:p-8 flex flex-col justify-between shadow-xl ring-2 ring-amber-400/20">
-              <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-amber-400 text-black text-[10px] font-bold rounded-full uppercase tracking-wider shadow">
-                Most Popular
+            <div className="relative rounded-2xl border-2 border-amber-400/40 bg-[var(--bg)] p-6 sm:p-8 flex flex-col justify-between shadow-xl ring-2 ring-amber-400/10">
+              <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-amber-400/20 text-amber-300 border border-amber-400/40 text-[10px] font-bold rounded-full uppercase tracking-wider shadow">
+                Coming Soon
               </span>
 
               <div>
@@ -638,15 +638,19 @@ export default function LandingPage() {
               </div>
 
               <button
-                onClick={handlePricingClick}
-                className="mt-8 w-full py-2.5 px-4 rounded-xl bg-amber-400 hover:bg-amber-300 text-black text-xs font-bold transition-all shadow-md cursor-pointer"
+                disabled
+                className="mt-8 w-full py-2.5 px-4 rounded-xl bg-[var(--surface-hover)] border border-[var(--border)] text-[var(--muted)] text-xs font-semibold cursor-not-allowed opacity-70"
               >
-                Upgrade to Pro
+                Coming Soon
               </button>
             </div>
 
             {/* Elite Plan */}
-            <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-6 sm:p-8 flex flex-col justify-between shadow-xs">
+            <div className="relative rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-6 sm:p-8 flex flex-col justify-between shadow-xs">
+              <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-purple-500/20 text-purple-300 border border-purple-500/40 text-[10px] font-bold rounded-full uppercase tracking-wider shadow">
+                Coming Soon
+              </span>
+
               <div>
                 <div className="flex items-center gap-2 mb-3">
                   <Crown size={20} className="text-purple-400" />
@@ -684,10 +688,10 @@ export default function LandingPage() {
               </div>
 
               <button
-                onClick={handlePricingClick}
-                className="mt-8 w-full py-2.5 px-4 rounded-xl bg-[var(--blue)] hover:bg-blue-600 text-white text-xs font-semibold transition-all shadow-sm cursor-pointer"
+                disabled
+                className="mt-8 w-full py-2.5 px-4 rounded-xl bg-[var(--surface-hover)] border border-[var(--border)] text-[var(--muted)] text-xs font-semibold cursor-not-allowed opacity-70"
               >
-                Upgrade to Elite
+                Coming Soon
               </button>
             </div>
           </div>

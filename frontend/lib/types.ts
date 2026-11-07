@@ -332,6 +332,7 @@ export interface BillingPlan {
   ai_runs_per_month: number
   features: string[]
   highlight: boolean
+  coming_soon?: boolean
 }
 
 export interface BillingPlansResponse {

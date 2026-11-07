@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 # ── Minimal env stubs (no real DB / Redis required) ───────────────────────────
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
-os.environ.setdefault("RAZORPAY_MOCK_MODE", "true")
+os.environ.setdefault("RAZORPAY_MOCK_MODE", "false")
 
 
 # ==============================================================================
@@ -161,10 +161,10 @@ class TestBillingConfig(unittest.TestCase):
         from src.core.config import settings
         self.assertEqual(settings.TIER_PRICE_PAISE["ELITE"], 79900)
 
-    def test_mock_mode_default_true(self):
+    def test_mock_mode_default_false(self):
         from src.core.config import settings
-        # In test environment RAZORPAY_MOCK_MODE=true was set in os.environ above
-        self.assertTrue(settings.RAZORPAY_MOCK_MODE)
+        # By default mock mode is false to protect public deployments from unauthorized tier upgrades
+        self.assertFalse(settings.RAZORPAY_MOCK_MODE)
 
     def test_three_tiers_defined(self):
         from src.core.config import settings
@@ -199,21 +199,31 @@ class TestBillingPlanDefinitions(unittest.TestCase):
         self.assertEqual(elite["ai_runs_per_month"], settings.TIER_AI_QUOTA["ELITE"])
 
 
+    def test_pro_and_elite_are_coming_soon(self):
+        from src.api.billing import TIER_DEFINITIONS
+        free = next(p for p in TIER_DEFINITIONS if p["tier"] == "FREE")
+        pro = next(p for p in TIER_DEFINITIONS if p["tier"] == "PRO")
+        elite = next(p for p in TIER_DEFINITIONS if p["tier"] == "ELITE")
+        self.assertFalse(free.get("coming_soon", False))
+        self.assertTrue(pro.get("coming_soon", False))
+        self.assertTrue(elite.get("coming_soon", False))
+
+
 # ==============================================================================
 # 6. RAZORPAY SIGNATURE VERIFICATION
 # ==============================================================================
 
 class TestRazorpaySignatureVerification(unittest.TestCase):
-    def test_mock_mode_accepts_any_signature(self):
+    def test_mock_mode_bypass_disabled(self):
         from src.api.billing import _verify_razorpay_signature
-        # In mock mode any signature should return True
+        # With mock mode commented out, mock signatures should be rejected
         result = _verify_razorpay_signature("order_123", "pay_456", "any_sig_value")
-        self.assertTrue(result)
+        self.assertFalse(result)
 
-    def test_mock_webhook_accepts_any_signature(self):
+    def test_mock_webhook_bypass_disabled(self):
         from src.api.billing import _verify_webhook_signature
         result = _verify_webhook_signature(b'{"event":"payment.captured"}', "any_sig")
-        self.assertTrue(result)
+        self.assertFalse(result)
 
     def test_mock_order_returns_expected_fields(self):
         from src.api.billing import _mock_create_order
