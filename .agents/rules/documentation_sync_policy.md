@@ -1,6 +1,7 @@
 ---
+trigger: always_on
 description: Policy for post-feature documentation & skill updates confirmation
-globs: ["**/*"]
+globs: "**/*"
 ---
 
 # Post-Feature Documentation & Skill Update Policy

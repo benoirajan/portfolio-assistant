@@ -1,6 +1,7 @@
 ---
+trigger: always_on
 description: Mandatory post-task documentation update and TODO cleanup rule
-globs: ["**/*"]
+globs: "**/*"
 ---
 
 # Mandatory Post-Task Documentation & Task Cleanup Rule
