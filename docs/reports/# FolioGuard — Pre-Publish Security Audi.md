@@ -15,7 +15,7 @@ FolioGuard has a solid architectural foundation — JWT auth, Fernet AES-256 enc
 
 ---
 
-## Category 1 — Secret & Credential Exposure 🔴
+## Category 1 — Secret & Credential Exposure 🔴: Completed
 
 ### CRIT-01 · Live Secrets Committed to Repository
 
