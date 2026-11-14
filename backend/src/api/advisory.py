@@ -42,7 +42,7 @@ def recommendations(
     max_single_stock_pct: float = Query(15.0, ge=5.0, le=50.0),
     max_sector_pct: float = Query(25.0, ge=10.0, le=60.0),
     x_enctoken: Optional[str] = Header(None),
-    current_user: User = Depends(check_and_consume_ai_quota)
+    current_user: User = Depends(get_current_user)
 ):
     logger.info("Advisory request for user %s — goal='%s' stock_cap=%.0f%% sector_cap=%.0f%%",
                 current_user.id, investment_goal, max_single_stock_pct, max_sector_pct)

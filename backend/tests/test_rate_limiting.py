@@ -20,6 +20,7 @@ os.environ.setdefault("ENCRYPTION_SECRET_KEY", "vXz7e9K3N4P1Q8R6T2U5W7Y9A1B3C5E7
 from src.main import app
 from src.core.rate_limit import limiter
 from src.models.user import User
+from src.core.security import get_current_user
 from src.core.entitlements import check_and_consume_ai_quota
 from src.db.session import bind_engine
 from src.models import Base
@@ -62,15 +63,36 @@ class TestRateLimitingAndQuota(unittest.TestCase):
         self.assertEqual(resp_blocked.status_code, 429)
         self.assertIn("Rate limit exceeded", resp_blocked.text)
 
-    def test_advisory_recommendations_enforces_ai_quota_gate(self):
-        """CRIT-04: Verify /advisory/recommendations depends on check_and_consume_ai_quota."""
-        # Inspect route dependency signatures
+    def test_advisory_recommendations_uses_auth_without_consuming_ai_quota(self):
+        """Verify rule-based /advisory/recommendations uses get_current_user and does not consume AI quota."""
         from src.api.advisory import router
         rec_route = next(r for r in router.routes if r.path == "/api/v1/advisory/recommendations")
         dep_callables = [d.call for d in rec_route.dependant.dependencies]
         self.assertIn(
+            get_current_user,
+            dep_callables,
+            "/recommendations should authenticate user with get_current_user",
+        )
+        self.assertNotIn(
             check_and_consume_ai_quota,
             dep_callables,
-            "CRIT-04 verification failed: check_and_consume_ai_quota is not in /recommendations dependencies",
+            "/recommendations is rule-based and must NOT consume AI quota",
+        )
+
+    def test_advisory_pipeline_enforces_ai_quota_gate(self):
+        """Verify AI endpoints (/pipeline and /stream) enforce check_and_consume_ai_quota."""
+        from src.api.advisory import router
+        pipeline_route = next(r for r in router.routes if r.path == "/api/v1/advisory/pipeline")
+        stream_route = next(r for r in router.routes if r.path == "/api/v1/advisory/stream")
+
+        self.assertIn(
+            check_and_consume_ai_quota,
+            [d.call for d in pipeline_route.dependant.dependencies],
+            "/pipeline must enforce check_and_consume_ai_quota",
+        )
+        self.assertIn(
+            check_and_consume_ai_quota,
+            [d.call for d in stream_route.dependant.dependencies],
+            "/stream must enforce check_and_consume_ai_quota",
         )
 

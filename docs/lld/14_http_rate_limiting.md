@@ -17,10 +17,10 @@
 
 Prior to this implementation, FolioGuard lacked application-level HTTP rate limiting. This left sensitive authentication and expensive computation endpoints vulnerable to:
 1. **OTP Brute-Force & Credential Stuffing:** Unbounded attempts against `/verify-otp`, `/resend-otp`, and `/login`.
-2. **AI & Financial API Cost Spikes:** Direct calls to Google Gemini (`/recommendations`), Zerodha KiteConnect, and Yahoo Finance with no request throttling.
+2. **AI & Financial API Cost Spikes:** Direct calls to Google Gemini (`/pipeline`, `/stream`), Zerodha KiteConnect, and Yahoo Finance with no request throttling.
 3. **Denial-of-Service / Resource Starvation:** CPU-bound portfolio performance computations (XIRR, Sharpe, Sortino) could be repeatedly triggered.
 
-The rate limiting infrastructure introduces a centralized `slowapi` limiter backed by Redis (with graceful in-memory fallback) and explicit AI quota gating on single-stage advisory.
+The rate limiting infrastructure introduces a centralized `slowapi` limiter backed by Redis (with graceful in-memory fallback) and explicit AI quota gating on multi-stage Gemini AI advisory endpoints.
 
 ```mermaid
 graph TD
@@ -31,7 +31,7 @@ graph TD
     KeyFunc --> Storage[("Storage Backend:\nUpstash Redis (Prod) / In-Memory (Dev)")]
     
     Storage --> Evaluation{"Within Rate Limit?"}
-    Evaluation -->|Yes| RouteHandler["Execute Route Logic:\n- Auth Endpoints (/login, /verify-otp)\n- Analytics & Compute (/performance)\n- AI Advisory (check_and_consume_ai_quota)"]
+    Evaluation -->|Yes| RouteHandler["Execute Route Logic:\n- Auth Endpoints (/login, /verify-otp)\n- Analytics & Compute (/performance)\n- AI Advisory Pipeline (check_and_consume_ai_quota)"]
     Evaluation -->|No| Handler429["Return HTTP 429:\nRateLimitExceeded Handler"]
 ```
 
@@ -80,22 +80,18 @@ limiter = Limiter(
 
 ---
 
-## 4. Advisory Quota Enforcement (CRIT-04)
+## 4. Advisory Quota Enforcement & Route Gating Architecture
 
-In addition to HTTP rate limiting, `GET /api/v1/advisory/recommendations` now uses the `check_and_consume_ai_quota` dependency:
+Endpoints in `backend/src/api/advisory.py` are partitioned into two distinct categories based on whether they invoke Google Gemini LLM:
 
-```python
-@router.get("/recommendations")
-@limiter.limit("10/minute")
-def recommendations(
-    request: Request,
-    ...,
-    current_user: User = Depends(check_and_consume_ai_quota),
-):
-    ...
-```
+1. **Rule-Based Advisory (`GET /api/v1/advisory/recommendations`):**
+   - Evaluates portfolio constraints deterministically via `evaluate_rules` and `_rule_based_recommendations` (`source: "rule_engine"`).
+   - Does **not** invoke Google Gemini or consume AI tokens.
+   - Protected against abuse using standard authentication (`get_current_user`) and HTTP rate limiting (`@limiter.limit("10/minute")`). It does **not** consume user monthly AI quota.
 
-This closes the bypass vulnerability where FREE tier users could invoke single-stage recommendations repeatedly without decrementing their monthly Gemini AI quota.
+2. **3-Stage Gemini AI Advisory Pipeline (`GET /pipeline` & `GET /stream`):**
+   - Executes multi-stage LLM generation (Stage 1 Diagnosis, Stage 2 Opportunity Screening, Stage 3 Bounded Execution Decision).
+   - Injects `check_and_consume_ai_quota` to enforce monthly entitlement quotas (FREE: 3/mo, PRO: 50/mo, ELITE: unlimited) via Redis.
 
 ---
 
@@ -103,5 +99,6 @@ This closes the bypass vulnerability where FREE tier users could invoke single-s
 
 Tests are housed in `backend/tests/test_rate_limiting.py`:
 - `test_rate_limiter_exceeded_returns_429`: Verifies hitting `/resend-otp` 4 times in 1 minute triggers HTTP 429 `Rate limit exceeded`.
-- `test_advisory_recommendations_enforces_ai_quota_gate`: Introspects the route dependencies of `/recommendations` to assert `check_and_consume_ai_quota` is strictly attached.
+- `test_advisory_recommendations_uses_auth_without_consuming_ai_quota`: Introspects the route dependencies of `/recommendations` to assert `get_current_user` is attached and `check_and_consume_ai_quota` is strictly excluded.
+- `test_advisory_pipeline_enforces_ai_quota_gate`: Introspects `/advisory/pipeline` and `/advisory/stream` to assert `check_and_consume_ai_quota` is strictly attached.
 

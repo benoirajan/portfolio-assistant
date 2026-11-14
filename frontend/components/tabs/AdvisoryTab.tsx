@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import type {
   AdvisoryResponse,
   MultiStagePipelineResponse,
@@ -8,8 +8,12 @@ import type {
   Stage2Ranking,
   Stage3Execution,
   BasketItem,
+  AiQuotaResponse,
 } from '@/lib/types'
 import { useZerodhaBaskets, useExportZerodhaBasket } from '@/hooks/usePortfolio'
+import { fetchAiQuota } from '@/lib/api'
+import { useAuth } from '@/lib/auth-context'
+import PricingModal from '@/components/billing/PricingModal'
 import {
   ChevronDown,
   ChevronUp,
@@ -45,6 +49,11 @@ const TIER_BADGES: Record<string, { label: string; color: string }> = {
 }
 
 export default function AdvisoryTab({ advisory }: Props) {
+  const { user, isAuthenticated, openAuthModal, refreshUser } = useAuth()
+  const [quota, setQuota] = useState<AiQuotaResponse | null>(null)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [isPricingOpen, setIsPricingOpen] = useState(false)
+
   // Form inputs
   const [totalBudget, setTotalBudget] = useState('5000')
   const [monthlyCapacity, setMonthlyCapacity] = useState('10000')
@@ -59,7 +68,41 @@ export default function AdvisoryTab({ advisory }: Props) {
   const [pipelineResult, setPipelineResult] = useState<MultiStagePipelineResponse | null>(null)
   const [activeStageTab, setActiveStageTab] = useState<'stage1' | 'stage2' | 'stage3'>('stage3')
 
-  const handleRunPipeline = () => {
+  const loadQuota = useCallback(async () => {
+    if (!isAuthenticated) return
+    try {
+      const q = await fetchAiQuota()
+      setQuota(q)
+    } catch {
+      // quota fetch is best-effort
+    }
+  }, [isAuthenticated])
+
+  useEffect(() => {
+    loadQuota()
+  }, [loadQuota, user?.tier])
+
+  const isQuotaExhausted = Boolean(
+    quota && quota.limit < 9999 && quota.remaining <= 0
+  )
+
+  const handleRunPipeline = async () => {
+    setErrorMessage(null)
+
+    if (!isAuthenticated) {
+      setErrorMessage('Please sign in to run the 3-Stage AI Advisory Pipeline.')
+      openAuthModal()
+      return
+    }
+
+    if (isQuotaExhausted) {
+      setErrorMessage(
+        `Monthly AI advisory quota exhausted (${quota?.used}/${quota?.limit} runs used for ${quota?.tier} plan). Upgrade your plan to run the 3-stage AI advisor.`
+      )
+      setIsPricingOpen(true)
+      return
+    }
+
     setIsStreaming(true)
     setStreamStage(1)
     setStreamMessage('🔍 Initializing 3-Stage AI Advisory Pipeline...')
@@ -120,17 +163,33 @@ export default function AdvisoryTab({ advisory }: Props) {
           setActiveStageTab('stage3')
           setStreamMessage('✅ 3-Stage Advisory Pipeline execution complete!')
           es.close()
+          loadQuota()
         }
       } catch (err) {
         console.error('Failed to parse SSE event:', err)
       }
     }
 
-    es.onerror = (err) => {
-      console.warn('SSE stream disconnected or unauthorized:', err)
-      setStreamMessage('⚠️ Advisory stream disconnected. Please verify you are signed in.')
+    es.onerror = async (err) => {
+      console.warn('SSE stream disconnected or error:', err)
       setIsStreaming(false)
       es.close()
+
+      // Probe quota to check if 429 quota exhaustion caused disconnection
+      try {
+        const q = await fetchAiQuota()
+        setQuota(q)
+        if (q.limit < 9999 && q.remaining <= 0) {
+          setErrorMessage(
+            `Monthly AI advisory quota exhausted (${q.used}/${q.limit} runs used for ${q.tier} plan). Upgrade your plan to run the 3-stage AI advisor.`
+          )
+          return
+        }
+      } catch {
+        // ignore
+      }
+
+      setErrorMessage('⚠️ Advisory stream could not be started or was interrupted. Please verify your connection or sign-in session.')
     }
   }
 
@@ -152,6 +211,17 @@ export default function AdvisoryTab({ advisory }: Props) {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {isAuthenticated && quota && (
+            isQuotaExhausted ? (
+              <span className="text-xs bg-red-500/10 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-full font-medium flex items-center gap-1.5">
+                <AlertCircle size={14} /> AI Quota Exhausted ({quota.used}/{quota.limit})
+              </span>
+            ) : (
+              <span className="text-xs bg-amber-500/10 text-amber-400 border border-amber-500/30 px-3 py-1.5 rounded-full font-medium flex items-center gap-1.5">
+                <Sparkles size={13} /> {quota.remaining} of {quota.limit >= 9999 ? '∞' : quota.limit} AI runs remaining
+              </span>
+            )
+          )}
           {pipelineResult ? (
             <span className="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-3 py-1.5 rounded-full font-medium flex items-center gap-1.5">
               <CheckCircle2 size={14} /> Synced via {pipelineResult.llm_provider || 'Gemini 3.6 Flash'}
@@ -163,6 +233,59 @@ export default function AdvisoryTab({ advisory }: Props) {
           )}
         </div>
       </div>
+
+      {/* Quota Exhausted Alert */}
+      {isQuotaExhausted && (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-start gap-3">
+            <div className="p-2 rounded-lg bg-amber-500/20 text-amber-400 shrink-0 mt-0.5">
+              <AlertCircle size={18} />
+            </div>
+            <div>
+              <h5 className="text-sm font-semibold text-amber-300">Monthly AI Advisory Quota Exhausted</h5>
+              <p className="text-xs text-[var(--muted)] mt-0.5 leading-relaxed">
+                You have reached your limit of {quota?.limit} Gemini AI advisory runs for this month ({quota?.tier} plan).
+                The 3-stage interactive pipeline requires an active AI quota slot. Upgrade to PRO (50 runs/mo) or ELITE (unlimited) to run the AI advisor.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setIsPricingOpen(true)}
+            className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 text-black text-xs font-bold rounded-lg hover:brightness-110 transition-all flex items-center gap-1.5 shrink-0 shadow-md shadow-amber-500/20 cursor-pointer"
+          >
+            <Sparkles size={14} /> Upgrade Plan
+          </button>
+        </div>
+      )}
+
+      {/* Error / Notification Banner */}
+      {errorMessage && (
+        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in duration-200">
+          <div className="flex items-start gap-3 text-red-400 text-sm">
+            <AlertCircle size={18} className="shrink-0 mt-0.5" />
+            <div className="flex flex-col gap-0.5">
+              <span className="font-semibold text-red-300">AI Advisory Notice</span>
+              <span className="text-xs text-red-400/90 leading-relaxed">{errorMessage}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {isQuotaExhausted && (
+              <button
+                onClick={() => setIsPricingOpen(true)}
+                className="px-3 py-1.5 bg-amber-500 text-black text-xs font-semibold rounded-lg hover:bg-amber-400 transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <Sparkles size={13} /> Upgrade Plan
+              </button>
+            )}
+            <button
+              onClick={() => setErrorMessage(null)}
+              className="px-2.5 py-1 text-xs text-[var(--muted)] hover:text-white rounded transition-colors cursor-pointer"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Input Parameters Form */}
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5 flex flex-col gap-4">
@@ -238,21 +361,35 @@ export default function AdvisoryTab({ advisory }: Props) {
         </div>
 
         <div className="flex justify-end pt-2 border-t border-[var(--border)]">
-          <button
-            disabled={isStreaming}
-            onClick={handleRunPipeline}
-            className="px-5 py-2.5 rounded-lg bg-[var(--blue)] text-white font-medium hover:opacity-90 disabled:opacity-50 transition-opacity flex items-center gap-2 shadow-lg shadow-blue-500/10 text-sm"
-          >
-            {isStreaming ? (
-              <>
-                <Loader2 className="animate-spin" size={16} /> Running Pipeline…
-              </>
-            ) : (
-              <>
-                <Sparkles size={16} /> Run 3-Stage AI Advisory
-              </>
-            )}
-          </button>
+          {isQuotaExhausted ? (
+            <button
+              onClick={() => {
+                setErrorMessage(
+                  `Monthly AI advisory quota exhausted (${quota?.used}/${quota?.limit} runs used). Upgrade your plan to continue.`
+                )
+                setIsPricingOpen(true)
+              }}
+              className="px-5 py-2.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40 font-medium hover:bg-amber-500/30 transition-colors flex items-center gap-2 text-sm cursor-pointer shadow-lg shadow-amber-500/10"
+            >
+              <Sparkles size={16} /> Quota Exhausted — Upgrade Plan
+            </button>
+          ) : (
+            <button
+              disabled={isStreaming}
+              onClick={handleRunPipeline}
+              className="px-5 py-2.5 rounded-lg bg-[var(--blue)] text-white font-medium hover:opacity-90 disabled:opacity-50 transition-opacity flex items-center gap-2 shadow-lg shadow-blue-500/10 text-sm cursor-pointer"
+            >
+              {isStreaming ? (
+                <>
+                  <Loader2 className="animate-spin" size={16} /> Running Pipeline…
+                </>
+              ) : (
+                <>
+                  <Sparkles size={16} /> Run 3-Stage AI Advisory
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
@@ -517,6 +654,17 @@ export default function AdvisoryTab({ advisory }: Props) {
           </div>
         </div>
       )}
+
+      <PricingModal
+        isOpen={isPricingOpen}
+        onClose={() => setIsPricingOpen(false)}
+        onUpgradeSuccess={async () => {
+          setIsPricingOpen(false)
+          await refreshUser()
+          await loadQuota()
+          setErrorMessage(null)
+        }}
+      />
     </div>
   )
 }

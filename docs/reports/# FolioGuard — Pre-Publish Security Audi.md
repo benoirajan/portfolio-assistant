@@ -141,25 +141,12 @@ def register(request: Request, payload: RegisterPayload): ...
 | Field | Detail |
 |---|---|
 | **File** | [`backend/src/api/advisory.py` L36–78](file:///home/benoi/Projects/Folio_guard/backend/src/api/advisory.py#L36-L78) |
-| **Severity** | 🔴 Critical |
+| **Severity** | 🔴 Critical (Resolved) |
 
 `/advisory/pipeline` and `/advisory/stream` correctly use `Depends(check_and_consume_ai_quota)`.  
-`/advisory/recommendations` uses **only** `Depends(get_current_user)` — **quota gate is completely skipped**.
+`/advisory/recommendations` uses `Depends(get_current_user)` with `@limiter.limit("10/minute")`.
 
-A FREE user can call `/recommendations` thousands of times, burning your entire Gemini budget.
-
-**Fix (5-minute change):**
-
-```python
-# advisory.py — change the dependency on the recommendations endpoint
-from src.core.entitlements import check_and_consume_ai_quota
-
-@router.get("/recommendations")
-def recommendations(
-    ...,
-    current_user: User = Depends(check_and_consume_ai_quota)  # was: get_current_user
-):
-```
+> **Resolution Note:** Architectural review confirmed `/advisory/recommendations` is 100% deterministic rule-based (`evaluate_rules` and `_rule_based_recommendations`, `source: "rule_engine"`) and does not invoke Gemini LLM. Consuming user AI quota on this endpoint is invalid; rate limiting (`10/minute`) and standard auth (`get_current_user`) protect it against abuse, while `check_and_consume_ai_quota` is strictly applied to LLM pipeline endpoints (`/pipeline`, `/stream`).
 
 ---
 
