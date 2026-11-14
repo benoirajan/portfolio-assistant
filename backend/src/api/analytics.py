@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, HTTPException, Header, Depends
+from fastapi import APIRouter, HTTPException, Header, Request, Depends
 from typing import Dict, Any, Optional
 from src.services.zerodha_client import zerodha_service
 from src.services.market_data import market_data_service
@@ -8,6 +8,7 @@ from src.services.tax_harvesting import tax_harvesting_analyzer
 from src.core.config import settings
 from src.core.security import get_current_user, get_user_enctoken
 from src.core.entitlements import require_tier
+from src.core.rate_limit import limiter
 from src.models.user import User
 
 logger = logging.getLogger("portfolio_assistant.api.analytics")
@@ -40,7 +41,9 @@ def get_portfolio_fundamentals(
 
 
 @router.get("/performance")
+@limiter.limit("10/minute")
 def get_portfolio_performance_metrics(
+    request: Request,
     x_enctoken: Optional[str] = Header(None, alias="X-Enctoken"),
     current_user: User = Depends(get_current_user)
 ):

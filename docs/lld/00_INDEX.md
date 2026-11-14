@@ -21,6 +21,7 @@
 | 11 | [11_saas_monetization.md](./11_saas_monetization.md) | Phase 7 & P1 | SaaS monetization, tier gating, Razorpay integration, Redis AI quota rate limiting |
 | 12 | [12_csv_excel_upload.md](./12_csv_excel_upload.md) | Phase 8 & Feature | CSV/XLSX file ingestion, column alias normalization, row validation, UploadSection component, cache invalidation |
 | 13 | [13_prompt_pipeline_remediation.md](./13_prompt_pipeline_remediation.md) | Issue #19 | Portfolio denominator injection, affordable candidate universe pre-filter, single-asset whole-share guard, prompt streamlining |
+| 14 | [14_http_rate_limiting.md](./14_http_rate_limiting.md) | Security Category 2 | Centralized slowapi HTTP rate limiting, Upstash Redis storage, auth/compute throttling, and /recommendations AI quota enforcement |
 
 ---
 
@@ -28,6 +29,8 @@
 
 | Source File | LLD Document(s) |
 |---|---|
+| `src/core/rate_limit.py` | [LLD 14 §2](./14_http_rate_limiting.md#2-centralized-rate-limiter-backendsrccorerate_limitpy) |
+| `tests/test_rate_limiting.py` | [LLD 14 §5](./14_http_rate_limiting.md#5-verification--testing) |
 | `src/core/security.py` | [LLD 10 §2](./10_multi_tenant_auth.md#2-key-architecture-components), [LLD 10 §4](./10_multi_tenant_auth.md#4-dual-transport-authentication-get_current_user) |
 | `src/core/config.py` | [LLD 01 §1](./01_phase1_auth_and_holdings.md#1-srccoreconfpy--settings), [LLD 03 §1](./03_phase3_ai_advisory.md#1-srccoreconfpy--llm-settings), [LLD 09 §2](./09_database_persistence.md#2-database-engine--session-manager-srcdbsessionpy), [LLD 10 §3](./10_multi_tenant_auth.md#3-broker-credential-security--in-memory-resolution) |
 | `src/db/base.py` | [LLD 09 §2](./09_database_persistence.md#2-database-engine--session-manager-srcdbsessionpy) |

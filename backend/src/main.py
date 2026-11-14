@@ -5,8 +5,11 @@ import logging
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from src.core.logging_config import setup_logging
 from src.core.config import settings
+from src.core.rate_limit import limiter
 from src.core import cache
 from src.db.session import check_db_connection, engine
 from src.models import Base
@@ -24,6 +27,10 @@ app = FastAPI(
     description="Zerodha KiteConnect Integrated Portfolio Management & AI Advisory Backend",
     version="1.0.0"
 )
+
+# --- Rate Limiting (CRIT-03) ---
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 cors_origins_raw = os.getenv("ALLOWED_ORIGINS", "*")
 allowed_origins = [o.strip() for o in cors_origins_raw.split(",") if o.strip()]
