@@ -18,7 +18,7 @@
 | 8 | [08_cache_layer.md](./08_cache_layer.md) | Cross-cutting | Redis cache client, key conventions, TTLs, graceful degradation, token security |
 | 9 | [09_database_persistence.md](./09_database_persistence.md) | Phase 6 & P0 | Managed Supabase PostgreSQL, SQLAlchemy 2.0 ORM, Alembic migrations, test pipeline |
 | 10 | [10_multi_tenant_auth.md](./10_multi_tenant_auth.md) | Phase 6 & P0 | Multi-tenant auth, Google IAM, email OTP verification, PBKDF2 passwords, Fernet AES-256 broker encryption, SSE auth |
-| 11 | [11_saas_monetization.md](./11_saas_monetization.md) | Phase 7 & P1 | SaaS monetization, tier gating, Razorpay integration, Redis AI quota rate limiting |
+| 11 | [11_saas_monetization.md](./11_saas_monetization.md) | Phase 7 & P1 | SaaS monetization, tier gating, Razorpay integration, PostgreSQL-backed AI quota enforcement |
 | 12 | [12_csv_excel_upload.md](./12_csv_excel_upload.md) | Phase 8 & Feature | CSV/XLSX file ingestion, column alias normalization, row validation, UploadSection component, cache invalidation |
 | 13 | [13_prompt_pipeline_remediation.md](./13_prompt_pipeline_remediation.md) | Issue #19 | Portfolio denominator injection, affordable candidate universe pre-filter, single-asset whole-share guard, prompt streamlining |
 | 14 | [14_http_rate_limiting.md](./14_http_rate_limiting.md) | Security Category 2 | Centralized slowapi HTTP rate limiting, Upstash Redis storage, auth/compute throttling, and /recommendations AI quota enforcement |

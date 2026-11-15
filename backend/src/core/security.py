@@ -283,7 +283,16 @@ def get_current_user(
                 detail="User account is inactive",
             )
         # Ensure scalar attributes are populated
-        _ = (user.id, user.email, user.full_name, user.tier, user.is_active, user.created_at)
+        _ = (
+            user.id,
+            user.email,
+            user.full_name,
+            user.tier,
+            user.is_active,
+            user.created_at,
+            user.ai_quota_used,
+            user.ai_quota_reset_at,
+        )
         db.expunge(user)
         return user
 

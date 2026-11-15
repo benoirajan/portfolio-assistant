@@ -1,4 +1,4 @@
-# Low-Level Design — 11: SaaS Monetization & Tier Gating
+s# Low-Level Design — 11: SaaS Monetization & Tier Gating
 
 **Module:** Billing, Subscriptions & Feature Entitlements  
 **Phase:** Phase 7 / Monetization  
@@ -85,10 +85,17 @@ Protects endpoints such as `/api/v1/analytics/tax-harvesting` by evaluating `use
 
 ### B. AI Quota Consumption: `check_and_consume_ai_quota`
 Injected into `/api/v1/advisory/pipeline` and `/api/v1/advisory/stream`:
-- Evaluates key `usage:gemini:{user_id}:{YYYY_MM}` in Redis.
+- Managed directly in **PostgreSQL** on the `users` table (`ai_quota_used` INT, `ai_quota_reset_at` TIMESTAMPTZ) via migration `0004_add_user_ai_quota_tracking`.
 - Free tier limit: 3/mo; Pro: 50/mo; Elite: unlimited (999,999/mo).
-- Automatically increments counter via Redis atomic operations.
-- Raises `HTTPException(status_code=429, detail="Monthly AI Advisory quota exceeded")` if limit reached.
+- Race-condition safety: Evaluated with database row locking (`SELECT ... FOR UPDATE`).
+- Anchored 30-Day Window: The first query sets `ai_quota_reset_at = now + 30 days`. Consecutive queries on Day 15 and Day 28 increment `ai_quota_used` but **never extend** `ai_quota_reset_at`, completely preventing sliding-window TTL bugs.
+- Natural Expiry: When `now >= ai_quota_reset_at`, `ai_quota_used` resets to 0 and a new 30-day window starts.
+- Tier Upgrades: Automatically resets `ai_quota_used = 0` and aligns `ai_quota_reset_at` with `current_period_end`.
+- Raises `HTTPException(status_code=429, detail="Monthly AI Advisory quota exceeded")` if limit reached, including response headers:
+  - `X-Quota-Limit`: Quota allowance for user tier.
+  - `X-Quota-Used`: Quota consumed in current cycle.
+  - `X-Quota-Reset`: Remaining seconds until cycle reset.
+  - `X-Required-Tier`: Required tier to unlock more runs.
 
 ---
 
@@ -107,9 +114,13 @@ Injected into `/api/v1/advisory/pipeline` and `/api/v1/advisory/stream`:
 
 ## 5. Verification & Tests
 
-Unit and integration tests are located in `backend/tests/test_billing.py` (16 tests):
+Unit and integration tests are located in `backend/tests/test_billing.py` and `backend/tests/test_entitlements_postgres.py`:
+- `test_day_1_initial_query_anchors_30_day_window`: Verifies Day 1 query anchors 30-day window (`ai_quota_used = 1`, `ai_quota_reset_at = now + 30d`).
+- `test_day_15_and_day_28_do_not_slide_window`: Asserts consecutive queries increment usage to 2 and 3 without sliding `ai_quota_reset_at`.
+- `test_day_29_exhausted_quota_raises_429_with_headers`: Asserts 4th query on FREE plan blocks with HTTP 429 and accurate `X-Quota-Reset` header.
+- `test_day_32_natural_window_reset`: Asserts that when clock passes `ai_quota_reset_at`, quota automatically resets to 0 and starts fresh.
+- `test_tier_upgrade_resets_quota_and_aligns_window`: Asserts tier upgrade clears usage to 0 and aligns reset date to subscription period end.
+- `test_get_ai_quota_endpoint_reflects_postgres_data`: Validates `GET /api/v1/billing/quota` returns usage, limit, remaining, and TTL seconds.
 - `test_get_plans`: Verifies tier prices and entitlement specs.
-- `test_create_order_mock`: Verifies mock order ID generation.
 - `test_verify_payment_upgrades_user`: Verifies tier elevation to PRO/ELITE upon valid signature.
-- `test_quota_limits`: Verifies rate limiter enforcement and 429 response upon exhaustion.
 - `test_require_tier_gate`: Verifies 403 Forbidden for insufficient subscription tier.
