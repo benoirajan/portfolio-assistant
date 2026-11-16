@@ -3,11 +3,12 @@ import logging
 import secrets
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, Request, status
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select, delete
 
 from src.core.config import settings
+from src.core.rate_limit import limiter
 from src.core.security import (
     hash_password,
     verify_password,
@@ -69,7 +70,8 @@ class CallbackPayload(BaseModel):
 # ==============================================================================
 
 @router.post("/google", status_code=status.HTTP_200_OK)
-def google_auth(payload: GoogleAuthPayload):
+@limiter.limit("10/minute")
+def google_auth(request: Request, payload: GoogleAuthPayload):
     """
     Authenticates or registers a user via Google IAM / OAuth 2.0 ID Token.
     Validates token claims, provisions user in database, and returns JWT access token.
@@ -134,7 +136,8 @@ def google_auth(payload: GoogleAuthPayload):
 
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
-def register(payload: RegisterPayload):
+@limiter.limit("5/minute")
+def register(request: Request, payload: RegisterPayload):
     """
     Registers a new user account with email and password.
     Generates a 6-digit OTP code and dispatches a verification email.
@@ -200,7 +203,8 @@ def register(payload: RegisterPayload):
 
 
 @router.post("/verify-otp", status_code=status.HTTP_200_OK)
-def verify_otp(payload: VerifyOtpPayload):
+@limiter.limit("5/minute")
+def verify_otp(request: Request, payload: VerifyOtpPayload):
     """
     Validates a 6-digit email verification OTP and returns a JWT access token.
     """
@@ -281,7 +285,8 @@ def verify_otp(payload: VerifyOtpPayload):
 
 
 @router.post("/resend-otp", status_code=status.HTTP_200_OK)
-def resend_otp(payload: ResendOtpPayload):
+@limiter.limit("3/minute")
+def resend_otp(request: Request, payload: ResendOtpPayload):
     """
     Generates and resends a fresh 6-digit verification code.
     """
@@ -319,7 +324,8 @@ def resend_otp(payload: ResendOtpPayload):
 
 
 @router.post("/login")
-def login(payload: LoginPayload):
+@limiter.limit("10/minute")
+def login(request: Request, payload: LoginPayload):
     """
     Authenticates an existing user and returns a JWT access token.
     Blocks unverified email accounts and sends a fresh verification OTP.

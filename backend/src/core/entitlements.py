@@ -14,13 +14,16 @@ Usage:
 """
 
 import logging
-from typing import Literal
+from datetime import datetime, timedelta, timezone
+from typing import Literal, Optional
 
 from fastapi import Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
-from src.core import cache
 from src.core.config import settings
 from src.core.security import get_current_user
+from src.db.session import get_db, get_db_session
 from src.models.user import User
 
 logger = logging.getLogger("portfolio_assistant.entitlements")
@@ -68,46 +71,55 @@ def require_tier(minimum_tier: Literal["FREE", "PRO", "ELITE"]):
     return _check_tier
 
 
-def check_and_consume_ai_quota(
-    current_user: User = Depends(get_current_user),
-) -> User:
-    """FastAPI dependency: checks and atomically increments the monthly Gemini AI quota.
-
-    Quota is stored in Redis (container-ready; no disk fallback).
-    If Redis is unavailable the request is allowed through with a warning log
-    rather than hard-blocking users — fail-open is the safer UX choice here.
-
-    Quota resets: TTL is set to 30 days on first write; it resets naturally
-    when the key expires. Billing webhooks can proactively delete the key on
-    tier upgrade/renewal via ``cache.delete(f"quota:ai:{user_id}")``.
-
-    Raises:
-        HTTP 429 when the user's monthly AI run quota is exhausted.
-    """
+def _check_and_consume_db(current_user: User, db: Session) -> User:
     tier = (current_user.tier or "FREE").upper()
     quota_limit: int = settings.TIER_AI_QUOTA.get(tier, 3)
-    quota_key = f"quota:ai:{current_user.id}"
+    now = datetime.now(timezone.utc)
 
-    # --- Quota read ---
+    # Lock user row for atomic check-and-increment (SELECT ... FOR UPDATE)
     try:
-        current_count_raw = cache.get(quota_key)
-        current_count = int(current_count_raw) if current_count_raw is not None else 0
+        user = db.execute(
+            select(User).where(User.id == current_user.id).with_for_update()
+        ).scalar_one_or_none()
     except Exception as exc:
-        # Redis unavailable — fail open so users are never hard-blocked by infra issues
+        # In case DB is temporarily unreachable or SQLite doesn't support lock
         logger.warning(
-            "AI quota check Redis error for user=%s — allowing request: %s",
+            "AI quota DB lock error for user=%s — falling back to standard query: %s",
             current_user.id,
             exc,
         )
-        return current_user
+        user = db.execute(select(User).where(User.id == current_user.id)).scalar_one_or_none()
 
-    if current_count >= quota_limit:
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User account not found",
+        )
+
+    reset_at = user.ai_quota_reset_at
+    if reset_at is not None and reset_at.tzinfo is None:
+        reset_at = reset_at.replace(tzinfo=timezone.utc)
+
+    # Natural window reset: first query ever or 30 days elapsed since window start
+    if reset_at is None or now >= reset_at:
+        user.ai_quota_used = 0
+        user.ai_quota_reset_at = now + timedelta(days=30)
+        reset_at = user.ai_quota_reset_at
+
+    # Check quota limit
+    if user.ai_quota_used >= quota_limit:
+        resets_in = (
+            max(0, int((reset_at - now).total_seconds()))
+            if reset_at
+            else 0
+        )
         logger.info(
-            "AI quota exhausted — user=%s tier=%s used=%d limit=%d",
-            current_user.id,
+            "AI quota exhausted — user=%s tier=%s used=%d limit=%d resets_in=%ds",
+            user.id,
             tier,
-            current_count,
+            user.ai_quota_used,
             quota_limit,
+            resets_in,
         )
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -118,27 +130,45 @@ def check_and_consume_ai_quota(
             ),
             headers={
                 "X-Quota-Limit": str(quota_limit),
-                "X-Quota-Used": str(current_count),
+                "X-Quota-Used": str(user.ai_quota_used),
+                "X-Quota-Reset": str(resets_in),
                 "X-Required-Tier": "PRO" if tier == "FREE" else "ELITE",
             },
         )
 
-    # --- Quota increment (30-day rolling TTL = 2_592_000 seconds) ---
-    try:
-        new_count = current_count + 1
-        cache.set(quota_key, new_count, ttl=2_592_000)
-        logger.info(
-            "AI quota consumed — user=%s tier=%s used=%d/%d",
-            current_user.id,
-            tier,
-            new_count,
-            quota_limit,
-        )
-    except Exception as exc:
-        logger.warning(
-            "AI quota increment Redis error for user=%s — allowing request: %s",
-            current_user.id,
-            exc,
-        )
+    # Increment quota — ai_quota_reset_at is deliberately NOT touched (prevents sliding window bug)
+    user.ai_quota_used += 1
+    db.commit()
 
-    return current_user
+    logger.info(
+        "AI quota consumed — user=%s tier=%s used=%d/%d resets_at=%s",
+        user.id,
+        tier,
+        user.ai_quota_used,
+        quota_limit,
+        user.ai_quota_reset_at,
+    )
+    return user
+
+
+def check_and_consume_ai_quota(
+    current_user: User = Depends(get_current_user),
+    db: Optional[Session] = Depends(get_db),
+) -> User:
+    """FastAPI dependency: checks and atomically increments monthly Gemini AI quota in PostgreSQL.
+
+    Quota is stored directly in PostgreSQL on the `users` table:
+    - `ai_quota_used`: count of runs consumed in the active cycle.
+    - `ai_quota_reset_at`: fixed 30-day window anchor (set on first query or tier upgrade).
+
+    Consecutive queries within the 30-day window increment `ai_quota_used` without
+    shifting `ai_quota_reset_at`, eliminating the sliding window bug.
+    Once `now >= ai_quota_reset_at`, the counter resets naturally to 0.
+
+    Raises:
+        HTTP 429 when the user's monthly AI run quota is exhausted.
+    """
+    if db is None:
+        with get_db_session() as session:
+            return _check_and_consume_db(current_user, session)
+    return _check_and_consume_db(current_user, db)

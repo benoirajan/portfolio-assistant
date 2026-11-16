@@ -5,164 +5,6 @@
 **Scope:** Backend (FastAPI/Python) + Frontend (Next.js/TypeScript)  
 **Severity Legend:** 🔴 Critical · 🟠 High · 🟡 Medium · 🔵 Low
 
----
-
-## Executive Summary
-
-FolioGuard has a solid architectural foundation — JWT auth, Fernet AES-256 encryption, per-user quota, and a tier gating module are all _built and correct_. However, **none of the rate-limiting infrastructure is wired to production routes**, **real secrets are committed in `.env`**, and **several premium features are either ungated or trivially bypassable**. Shipping as-is would allow any free-tier user to exhaust your Gemini budget, bypass subscription checks, and expose live API keys.
-
-**18 findings across 5 categories. 4 Critical · 5 High · 5 Medium · 4 Low.**
-
----
-
-## Category 1 — Secret & Credential Exposure 🔴
-
-### CRIT-01 · Live Secrets Committed to Repository
-
-| Field | Detail |
-|---|---|
-| **Files** | [`backend/.env`](file:///home/benoi/Projects/Folio_guard/backend/.env), [`frontend/.env`](file:///home/benoi/Projects/Folio_guard/frontend/.env) |
-| **Severity** | 🔴 Critical |
-
-**What's exposed in the committed `.env` files:**
-
-| Secret | Status |
-|---|---|
-| `KITE_API_KEY` / `KITE_API_SECRET` | Live Zerodha credentials |
-| `GEMINI_API_KEY` | Live Google AI key |
-| `DATABASE_URL` | Full Supabase Postgres URI + password |
-| `REDIS_URL` | Full Upstash URI + password |
-| `GOOGLE_CLIENT_SECRET` | Live OAuth secret |
-| `SMTP_PASSWORD` | Gmail app password |
-| `ENCRYPTION_SECRET_KEY` | Fernet AES key (same as hardcoded default) |
-| `JWT_SECRET_KEY` | Weak placeholder value |
-
-**Risk:** Anyone with repo access (including any future GitHub push) can impersonate users, drain your Gemini quota, read/modify every user's Supabase database, and decrypt all stored Zerodha enctokens.
-
-4. Change hardcoded fallback defaults in [`config.py` L32–58](file:///home/benoi/Projects/Folio_guard/backend/src/core/config.py#L32-L58) to raise `ValueError` if not set in production:
-
-```python
-def _require(name: str) -> str:
-    raise ValueError(f"Required env var '{name}' is not set. Refusing to start.")
-
-JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY") or _require("JWT_SECRET_KEY")
-ENCRYPTION_SECRET_KEY: str = os.getenv("ENCRYPTION_SECRET_KEY") or _require("ENCRYPTION_SECRET_KEY")
-```
-
----
-
-### CRIT-02 · Hardcoded Fallback Fernet Key in `security.py`
-
-| Field | Detail |
-|---|---|
-| **File** | [`backend/src/core/security.py` L77](file:///home/benoi/Projects/Folio_guard/backend/src/core/security.py#L77) |
-| **Severity** | 🔴 Critical |
-
-```python
-# CURRENT — hardcoded fallback used when ENCRYPTION_SECRET_KEY is unset
-raw_key = "vXz7e9K3N4P1Q8R6T2U5W7Y9A1B3C5E7G9I1K3M5O7Q="
-```
-
-This is the **exact same key** as the `.env` default. Any attacker who reads the source code can decrypt every Zerodha enctoken stored in Supabase.
-
-**Fix:** Remove the hardcoded fallback entirely:
-
-```python
-def _get_fernet() -> Fernet:
-    raw_key = settings.ENCRYPTION_SECRET_KEY
-    if not raw_key:
-        raise RuntimeError("ENCRYPTION_SECRET_KEY is required and must not be empty")
-    try:
-        return Fernet(raw_key.encode() if isinstance(raw_key, str) else raw_key)
-    except Exception as e:
-        raise RuntimeError(f"Invalid ENCRYPTION_SECRET_KEY: {e}")
-```
-
----
-
-## Category 2 — Rate Limiting (Missing Entirely) 🔴
-
-### CRIT-03 · No HTTP Rate Limiting on Any Endpoint
-
-| Field | Detail |
-|---|---|
-| **Files** | [`main.py`](file:///home/benoi/Projects/Folio_guard/backend/src/main.py), all routers |
-| **Severity** | 🔴 Critical |
-
-There is **zero HTTP-level rate limiting** anywhere. This enables:
-
-- **OTP brute-force** — 6-digit OTP = 1,000,000 combinations, no lockout on `/verify-otp` or `/resend-otp`.
-- **Login credential stuffing** — `/login` can be hammered without limit.
-- **AI cost abuse** — `/recommendations` calls Gemini with no quota gate (see CRIT-04).
-- **DDoS amplification** — Each request fans out to Zerodha + Yahoo Finance APIs.
-
-**Fix — Add `slowapi` globally:**
-
-```python
-# requirements.txt
-slowapi==0.1.9
-
-# main.py
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
-
-limiter = Limiter(key_func=get_remote_address)
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-```
-
-**Decorate critical endpoints in `auth.py`:**
-
-```python
-from src.main import limiter
-
-@router.post("/login")
-@limiter.limit("10/minute")
-def login(request: Request, payload: LoginPayload): ...
-
-@router.post("/verify-otp")
-@limiter.limit("5/minute")
-def verify_otp(request: Request, payload: VerifyOtpPayload): ...
-
-@router.post("/resend-otp")
-@limiter.limit("3/minute")
-def resend_otp(request: Request, payload: ResendOtpPayload): ...
-
-@router.post("/register")
-@limiter.limit("5/minute")
-def register(request: Request, payload: RegisterPayload): ...
-```
-
----
-
-### CRIT-04 · `/advisory/recommendations` Has No AI Quota Gate
-
-| Field | Detail |
-|---|---|
-| **File** | [`backend/src/api/advisory.py` L36–78](file:///home/benoi/Projects/Folio_guard/backend/src/api/advisory.py#L36-L78) |
-| **Severity** | 🔴 Critical |
-
-`/advisory/pipeline` and `/advisory/stream` correctly use `Depends(check_and_consume_ai_quota)`.  
-`/advisory/recommendations` uses **only** `Depends(get_current_user)` — **quota gate is completely skipped**.
-
-A FREE user can call `/recommendations` thousands of times, burning your entire Gemini budget.
-
-**Fix (5-minute change):**
-
-```python
-# advisory.py — change the dependency on the recommendations endpoint
-from src.core.entitlements import check_and_consume_ai_quota
-
-@router.get("/recommendations")
-def recommendations(
-    ...,
-    current_user: User = Depends(check_and_consume_ai_quota)  # was: get_current_user
-):
-```
-
----
-
 ## Category 3 — Premium Plan Gating Gaps 🟠
 
 ### HIGH-01 · Basket & Export Endpoints Are Ungated (PRO Features)
@@ -202,46 +44,7 @@ def export_zerodha_basket(
 
 ---
 
-### HIGH-02 · `/advisory/pipeline` Consumed Quota Without Enforcing PRO Tier
 
-| Field | Detail |
-|---|---|
-| **File** | [`backend/src/api/advisory.py` L81–114](file:///home/benoi/Projects/Folio_guard/backend/src/api/advisory.py#L81-L114) |
-| **Severity** | 🟠 High |
-
-`check_and_consume_ai_quota` enforces monthly quota counts but does **not** check that the 3-Stage Pipeline is a PRO-only feature. A FREE user with 3 remaining quota slots can run the most expensive endpoint.
-
-**Fix — Chain both dependencies:**
-
-```python
-@router.get("/pipeline")
-def multi_stage_pipeline(
-    ...,
-    _tier_check: User = Depends(require_tier("PRO")),           # gate first
-    current_user: User = Depends(check_and_consume_ai_quota),   # then deduct quota
-):
-```
-
----
-
-### HIGH-03 · `/analytics/performance` Ungated Despite Expensive Compute
-
-| Field | Detail |
-|---|---|
-| **File** | [`backend/src/api/analytics.py` L42–78](file:///home/benoi/Projects/Folio_guard/backend/src/api/analytics.py#L42-L78) |
-| **Severity** | 🟠 High |
-
-XIRR / Sharpe / Sortino calculations hit Yahoo Finance and are CPU-bound. No rate limit or tier gate. This should either be a PRO feature or rate-limited aggressively.
-
-**Quick fix (add rate limiting):**
-
-```python
-@router.get("/performance")
-@limiter.limit("10/minute")
-def get_portfolio_performance_metrics(request: Request, ...):
-```
-
----
 
 ### HIGH-04 · Payment Verification Trusts Client-Supplied `target_tier`
 
@@ -280,6 +83,8 @@ target_tier = server_tier  # Override client value
 | **Severity** | 🟠 High |
 
 After upgrading to PRO, the backend upgrades `user.tier` in Postgres but does not return a new JWT. The frontend's cached token still contains `tier: "FREE"` — premium UI gates remain locked until the user re-logs in.
+
+**Note:** Premium is blocked now so this issue is not critical.
 
 **Fix — Return a fresh access token in the upgrade response:**
 
@@ -360,7 +165,7 @@ def auth_callback(
     current_user: User = Depends(get_current_user)  # Add auth requirement
 ):
 ```
-
+**Note:** this also not implemented currently
 ---
 
 ### MED-04 · Tokens Stored in `localStorage` (XSS Exposure)
@@ -427,22 +232,17 @@ JWT `access_token` and `enctoken` are stored in `localStorage`. Any XSS vulnerab
 
 | Priority | Finding | Files | Est. Effort |
 |---|---|---|---|
-| 🔴 P0 | Rotate ALL committed secrets | `.env` files | 30 min |
-| 🔴 P0 | Remove hardcoded Fernet fallback | [`security.py`](file:///home/benoi/Projects/Folio_guard/backend/src/core/security.py) | 5 min |
-| 🔴 P0 | Add `slowapi` rate limiting to auth routes | [`main.py`](file:///home/benoi/Projects/Folio_guard/backend/src/main.py), [`auth.py`](file:///home/benoi/Projects/Folio_guard/backend/src/api/auth.py) | 2 hrs |
-| 🔴 P0 | Gate `/recommendations` with AI quota | [`advisory.py`](file:///home/benoi/Projects/Folio_guard/backend/src/api/advisory.py) | 5 min |
-| 🟠 P1 | Gate basket/export with `require_tier("PRO")` | [`advisory.py`](file:///home/benoi/Projects/Folio_guard/backend/src/api/advisory.py) | 10 min |
-| 🟠 P1 | Chain tier + quota on `/pipeline` | [`advisory.py`](file:///home/benoi/Projects/Folio_guard/backend/src/api/advisory.py) | 5 min |
-| 🟠 P1 | Set `RAZORPAY_MOCK_MODE=false` + server-side `target_tier` | [`billing.py`](file:///home/benoi/Projects/Folio_guard/backend/src/api/billing.py) | 1 hr |
-| 🟠 P1 | Return fresh JWT after upgrade | [`billing.py`](file:///home/benoi/Projects/Folio_guard/backend/src/api/billing.py) | 30 min |
-| 🟡 P2 | `hmac.compare_digest` for OTP | [`auth.py`](file:///home/benoi/Projects/Folio_guard/backend/src/api/auth.py) | 2 min |
+| 🟠 P1 | Gate basket/export endpoints with `require_tier("PRO")` | [`advisory.py`](file:///home/benoi/Projects/Folio_guard/backend/src/api/advisory.py) | 10 min |
+| 🟠 P1 | Return fresh JWT after upgrade | [`billing.py`](file:///home/benoi/Projects/Folio_guard/backend/src/api/billing.py), [`security.py`](file:///home/benoi/Projects/Folio_guard/backend/src/core/security.py) | 30 min |
+| 🟡 P2 | Constant-time comparison (`hmac.compare_digest`) for OTP | [`auth.py`](file:///home/benoi/Projects/Folio_guard/backend/src/api/auth.py) | 2 min |
 | 🟡 P2 | Fix user enumeration on `resend-otp` | [`auth.py`](file:///home/benoi/Projects/Folio_guard/backend/src/api/auth.py) | 5 min |
-| 🟡 P2 | Add auth to Zerodha OAuth callback | [`auth.py`](file:///home/benoi/Projects/Folio_guard/backend/src/api/auth.py) | 30 min |
-| 🟡 P2 | Migrate tokens to `httpOnly` cookies | [`auth-context.tsx`](file:///home/benoi/Projects/Folio_guard/frontend/lib/auth-context.tsx) | 2 hrs |
+| 🟡 P2 | Add auth / state check to Zerodha OAuth callback | [`auth.py`](file:///home/benoi/Projects/Folio_guard/backend/src/api/auth.py) | 30 min |
+| 🟡 P2 | Migrate tokens from `localStorage` to `httpOnly` cookies | [`auth-context.tsx`](file:///home/benoi/Projects/Folio_guard/frontend/lib/auth-context.tsx) | 2 hrs |
+| 🟡 P2 | Reduce JWT expiry to 60 min + add revocation/refresh | [`config.py`](file:///home/benoi/Projects/Folio_guard/backend/src/core/config.py) | 3 hrs |
 | 🔵 P3 | Disable `/docs` in production | [`main.py`](file:///home/benoi/Projects/Folio_guard/backend/src/main.py) | 2 min |
 | 🔵 P3 | Enforce `ALLOWED_ORIGINS` strictly | [`main.py`](file:///home/benoi/Projects/Folio_guard/backend/src/main.py) | 5 min |
-| 🔵 P3 | Rate-limit `/analytics/performance` | [`analytics.py`](file:///home/benoi/Projects/Folio_guard/backend/src/api/analytics.py) | 15 min |
-| 🔵 P3 | Reduce JWT expiry to 1 hr + add refresh | [`config.py`](file:///home/benoi/Projects/Folio_guard/backend/src/core/config.py) | 3 hrs |
+| 🔵 P3 | Circuit-breaker fallback on Redis quota outage | [`entitlements.py`](file:///home/benoi/Projects/Folio_guard/backend/src/core/entitlements.py) | 30 min |
+| 🔵 P3 | Restrict unauthenticated `/health` details | [`main.py`](file:///home/benoi/Projects/Folio_guard/backend/src/main.py) | 10 min |
 
 ---
 

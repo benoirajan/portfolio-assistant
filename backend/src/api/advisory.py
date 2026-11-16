@@ -3,7 +3,7 @@ import hashlib
 import json
 import logging
 import math
-from fastapi import APIRouter, Header, Query, HTTPException, Depends
+from fastapi import APIRouter, Header, Query, Request, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from typing import List, Literal, Optional
 from pydantic import BaseModel, Field
@@ -21,6 +21,7 @@ from src.core.config import settings
 from src.core import cache
 from src.core.security import get_current_user, get_user_enctoken
 from src.core.entitlements import check_and_consume_ai_quota
+from src.core.rate_limit import limiter
 from src.models.user import User
 
 logger = logging.getLogger("portfolio_assistant.api.advisory")
@@ -34,7 +35,9 @@ def _advisory_cache_key(user_id: str, goal: str, stock_pct: float, sector_pct: f
 
 
 @router.get("/recommendations")
+@limiter.limit("10/minute")
 def recommendations(
+    request: Request,
     investment_goal: str = Query("Moderate Growth", description="User's investment objective"),
     max_single_stock_pct: float = Query(15.0, ge=5.0, le=50.0),
     max_sector_pct: float = Query(25.0, ge=10.0, le=60.0),
@@ -79,7 +82,9 @@ def recommendations(
 
 
 @router.get("/pipeline")
+@limiter.limit("5/minute")
 def multi_stage_pipeline(
+    request: Request,
     total_budget: float = Query(5000.0, ge=0.0),
     monthly_capacity: float = Query(10000.0, ge=0.0),
     investment_schedule: str = Query("Bi-weekly ₹5,000"),
@@ -115,7 +120,9 @@ def multi_stage_pipeline(
 
 
 @router.get("/stream")
+@limiter.limit("5/minute")
 async def stream_advisory_pipeline(
+    request: Request,
     total_budget: float = Query(5000.0, ge=0.0),
     monthly_capacity: float = Query(10000.0, ge=0.0),
     investment_schedule: str = Query("Bi-weekly ₹5,000"),

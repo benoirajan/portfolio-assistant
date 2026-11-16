@@ -31,11 +31,12 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from src.core import cache
 from src.core.config import settings
 from src.core.security import get_current_user
-from src.db.session import get_db_session
+from src.db.session import get_db, get_db_session
 from src.models.subscription import Subscription
 from src.models.user import User
 
@@ -183,18 +184,20 @@ def _verify_webhook_signature(body_bytes: bytes, signature: str) -> bool:
 
 def _upgrade_user_tier(db_session, user: User, target_tier: str, order_id: str, payment_id: str) -> None:
     """Upgrades user tier in DB and upserts subscription record. Must be called inside an open db session."""
-    # Update user tier
+    now = datetime.now(timezone.utc)
+    period_end = now + timedelta(days=30)
+
+    # Update user tier and reset AI quota counter for the new tier
     db_user = db_session.execute(select(User).where(User.id == user.id)).scalar_one_or_none()
     if db_user:
         db_user.tier = target_tier.upper()
+        db_user.ai_quota_used = 0
+        db_user.ai_quota_reset_at = period_end
 
     # Upsert subscription record
     existing_sub = db_session.execute(
         select(Subscription).where(Subscription.user_id == user.id)
     ).scalar_one_or_none()
-
-    now = datetime.now(timezone.utc)
-    period_end = now + timedelta(days=30)
 
     if existing_sub:
         existing_sub.plan_type = target_tier.upper()
@@ -308,25 +311,41 @@ def get_billing_status(current_user: User = Depends(get_current_user)):
 
 
 @router.get("/quota")
-def get_ai_quota(current_user: User = Depends(get_current_user)):
+def get_ai_quota(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """Returns the user's current monthly Gemini AI advisory usage vs. quota."""
     tier = (current_user.tier or "FREE").upper()
     quota_limit: int = settings.TIER_AI_QUOTA.get(tier, 3)
-    quota_key = f"quota:ai:{current_user.id}"
 
-    try:
-        current_count_raw = cache.get(quota_key)
-        current_count = int(current_count_raw) if current_count_raw is not None else 0
-    except Exception as exc:
-        logger.warning("AI quota Redis read error for user=%s: %s", current_user.id, exc)
-        current_count = 0
+    now = datetime.now(timezone.utc)
+    user = db.execute(select(User).where(User.id == current_user.id)).scalar_one_or_none()
+    if not user:
+        user = current_user
+
+    used = user.ai_quota_used or 0
+    reset_at = user.ai_quota_reset_at
+    if reset_at is not None and reset_at.tzinfo is None:
+        reset_at = reset_at.replace(tzinfo=timezone.utc)
+
+    # If the 30-day window has expired, effective used count is 0
+    if reset_at and now >= reset_at:
+        used = 0
+        resets_in_seconds = 0
+    elif reset_at:
+        resets_in_seconds = max(0, int((reset_at - now).total_seconds()))
+    else:
+        resets_in_seconds = 0
 
     return {
         "status": "success",
         "tier": tier,
-        "used": current_count,
+        "used": used,
         "limit": quota_limit,
-        "remaining": max(0, quota_limit - current_count),
+        "remaining": max(0, quota_limit - used),
+        "resets_in_seconds": resets_in_seconds,
+        "resets_at": reset_at.isoformat() if reset_at else None,
     }
 
 
