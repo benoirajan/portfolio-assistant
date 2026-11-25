@@ -8,18 +8,18 @@
 
 ## 📅 Campaign Calendar At-a-Glance
 
-| Week | Post | Scheduled Day | Focus Area | Core Tech & Topics | Key Media Asset |
-|:---:|:---:|:---:|:---|:---|:---|
-| **Week 1** | **Post 1** | Tuesday | **Launch & Hero Announcement** | Full-Stack, Next.js 14, GCP Cloud Run | [01_landing_page.png](file:///home/benoi/Projects/Folio_guard/.reports/e2e_screenshots/01_landing_page.png) |
-| **Week 1** | **Post 2** | Thursday | **Hybrid Cloud Architecture** | Zero-infra-cost butterfly cloud, Vercel + GCP + Supabase + Upstash | System Architecture Diagram |
-| **Week 2** | **Post 3** | Tuesday | **3-Stage AI Advisory Pipeline** | Google Gemini API, Pydantic guardrails, SSE streaming, multi-pass reasoning | [06_advisory_tab.png](file:///home/benoi/Projects/Folio_guard/.reports/e2e_screenshots/06_advisory_tab.png) |
-| **Week 2** | **Post 4** | Thursday | **Dashboard & Data Visualization** | Next.js 14, Tailwind, Recharts, dark/light theme, institutional UX | Carousel: [02_holdings_tab.png](file:///home/benoi/Projects/Folio_guard/.reports/e2e_screenshots/02_holdings_tab.png) & [03_sector_tab.png](file:///home/benoi/Projects/Folio_guard/.reports/e2e_screenshots/03_sector_tab.png) |
-| **Week 3** | **Post 5** | Tuesday | **Zerodha Integration & Security** | Fernet AES-256, free `enctoken` session vs OAuth, PBKDF2 hashing | [02_holdings_tab.png](file:///home/benoi/Projects/Folio_guard/.reports/e2e_screenshots/02_holdings_tab.png) |
-| **Week 3** | **Post 6** | Thursday | **Quantitative Risk Engine** | XIRR (Newton-Raphson), Sharpe, Sortino, Beta vs NIFTY 50, 4-tier fallback | [04_performance_tab.png](file:///home/benoi/Projects/Folio_guard/.reports/e2e_screenshots/04_performance_tab.png) |
-| **Week 4** | **Post 7** | Tuesday | **Tax-Loss Harvesting (Budget 2024)** | STCG 20%, LTCG 12.5%, ₹1.25L exemption, holding period engine | [05_tax_tab.png](file:///home/benoi/Projects/Folio_guard/.reports/e2e_screenshots/05_tax_tab.png) |
-| **Week 4** | **Post 8** | Thursday | **DevOps & Production CI/CD** | GitHub Actions, Docker, GCP Artifact Registry, Cloud Run, approval gates | CI/CD Pipeline Diagram |
-| **Week 5** | **Post 9** | Tuesday | **Multi-Tenant DB & Scaling** | PostgreSQL 16, SQLAlchemy 2.0, Alembic, Redis rate limiting, row locks | Database ER Diagram |
-| **Week 5** | **Post 10** | Thursday | **Lessons Learned & What's Next** | Solo engineering retrospectives, roadmap (Phase 4 & 6), call for opportunities | Product Roadmap Matrix / Mosaic |
+| Week | Post | Scheduled Day | Focus Area | Core Tech & Topics | Key Media Asset | Blueprint Status |
+|:---:|:---:|:---:|:---|:---|:---|:---|
+| **Week 1** | **Post 1** | Tuesday | **Launch & Hero Announcement** | Full-Stack, Next.js 14, GCP Cloud Run | [01_landing_page.png](file:///home/benoi/Projects/Folio_guard/.reports/e2e_screenshots/01_landing_page.png) | [Ready](file:///home/benoi/Projects/Folio_guard/docs/plans/campaigns/week1_post1_launch_hero.md) |
+| **Week 1** | **Post 2** | Thursday | **Hybrid Cloud Architecture** | Zero-infra-cost butterfly cloud, Vercel + GCP + Supabase + Upstash | System Architecture Diagram | [Ready](file:///home/benoi/Projects/Folio_guard/docs/plans/campaigns/week1_post2_cloud_architecture.md) |
+| **Week 2** | **Post 3** | Tuesday | **3-Stage AI Advisory Pipeline** | Google Gemini API, Pydantic guardrails, SSE streaming, multi-pass reasoning | [06_advisory_tab.png](file:///home/benoi/Projects/Folio_guard/.reports/e2e_screenshots/06_advisory_tab.png) | [Ready](file:///home/benoi/Projects/Folio_guard/docs/plans/campaigns/week2_post3_ai_advisory_pipeline.md) |
+| **Week 2** | **Post 4** | Thursday | **Dashboard & Data Visualization** | Next.js 14, Tailwind, Recharts, dark/light theme, institutional UX | Carousel: [02_holdings_tab.png](file:///home/benoi/Projects/Folio_guard/.reports/e2e_screenshots/02_holdings_tab.png) & [03_sector_tab.png](file:///home/benoi/Projects/Folio_guard/.reports/e2e_screenshots/03_sector_tab.png) | Backlog |
+| **Week 3** | **Post 5** | Tuesday | **Zerodha Integration & Security** | Fernet AES-256, free `enctoken` session vs OAuth, PBKDF2 hashing | [02_holdings_tab.png](file:///home/benoi/Projects/Folio_guard/.reports/e2e_screenshots/02_holdings_tab.png) | Backlog |
+| **Week 3** | **Post 6** | Thursday | **Quantitative Risk Engine** | XIRR (Newton-Raphson), Sharpe, Sortino, Beta vs NIFTY 50, 4-tier fallback | [04_performance_tab.png](file:///home/benoi/Projects/Folio_guard/.reports/e2e_screenshots/04_performance_tab.png) | Backlog |
+| **Week 4** | **Post 7** | Tuesday | **Tax-Loss Harvesting (Budget 2024)** | STCG 20%, LTCG 12.5%, ₹1.25L exemption, holding period engine | [05_tax_tab.png](file:///home/benoi/Projects/Folio_guard/.reports/e2e_screenshots/05_tax_tab.png) | Backlog |
+| **Week 4** | **Post 8** | Thursday | **DevOps & Production CI/CD** | GitHub Actions, Docker, GCP Artifact Registry, Cloud Run, approval gates | CI/CD Pipeline Diagram | Backlog |
+| **Week 5** | **Post 9** | Tuesday | **Multi-Tenant DB & Scaling** | PostgreSQL 16, SQLAlchemy 2.0, Alembic, Redis rate limiting, row locks | Database ER Diagram | Backlog |
+| **Week 5** | **Post 10** | Thursday | **Lessons Learned & What's Next** | Solo engineering retrospectives, roadmap (Phase 4 & 6), call for opportunities | Product Roadmap Matrix / Mosaic | Backlog |
 
 ---
 
@@ -28,6 +28,7 @@
 ---
 
 ### 📌 Post 1 — Launch & Hero Announcement (Week 1, Day 1)
+> **Full Blueprint & Post Copy:** 👉 [week1_post1_launch_hero.md](file:///home/benoi/Projects/Folio_guard/docs/plans/campaigns/week1_post1_launch_hero.md)
 - **Primary Message:** I built and deployed **FolioGuard**, a production AI-powered portfolio assistant for Indian equity investors.
 - **Hook Idea:**
   > *"Most retail investors in India check their Zerodha Demat accounts, look at daily green/red P&L, and have no idea what their actual XIRR, portfolio Beta, or sector risk is. I decided to fix that."*
@@ -42,6 +43,7 @@
 ---
 
 ### 📌 Post 2 — Hybrid Cloud Architecture with Zero Maintenance (Week 1, Day 2)
+> **Full Blueprint & Post Copy:** 👉 [week1_post2_cloud_architecture.md](file:///home/benoi/Projects/Folio_guard/docs/plans/campaigns/week1_post2_cloud_architecture.md)
 - **Primary Message:** How to design a scalable, serverless fintech architecture that runs within generous free tiers without sacrificing reliability.
 - **Hook Idea:**
   > *"How do you build a cloud-native fintech platform handling live broker data, AI inference, and relational persistence with virtually zero monthly cloud bills? Here is the Hybrid Butterfly Architecture I designed for FolioGuard."*
@@ -63,6 +65,7 @@
 ---
 
 ### 📌 Post 3 — The 3-Stage AI Advisory Pipeline with Pydantic Guardrails (Week 2, Day 1)
+> **Full Blueprint & Post Copy:** 👉 [week2_post3_ai_advisory_pipeline.md](file:///home/benoi/Projects/Folio_guard/docs/plans/campaigns/week2_post3_ai_advisory_pipeline.md)
 - **Primary Message:** Why a single LLM prompt fails for financial advice, and how a deterministic-first, 3-stage pipeline solves it.
 - **Hook Idea:**
   > *"Prompting ChatGPT to 'analyze my stock portfolio' is a recipe for hallucinations and financial disaster. Here is how I designed a 3-stage deterministic + LLM advisory pipeline with strict Pydantic schemas."*
