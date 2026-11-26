@@ -13,7 +13,7 @@
 | **Week 1** | **Post 1** | Tuesday | **Launch & Hero Announcement** | Full-Stack, Next.js 14, GCP Cloud Run | [01_landing_page.png](file:///home/benoi/Projects/Folio_guard/.reports/e2e_screenshots/01_landing_page.png) | [Ready](file:///home/benoi/Projects/Folio_guard/docs/plans/campaigns/week1_post1_launch_hero.md) |
 | **Week 1** | **Post 2** | Thursday | **Hybrid Cloud Architecture** | Zero-infra-cost butterfly cloud, Vercel + GCP + Supabase + Upstash | System Architecture Diagram | [Ready](file:///home/benoi/Projects/Folio_guard/docs/plans/campaigns/week1_post2_cloud_architecture.md) |
 | **Week 2** | **Post 3** | Tuesday | **3-Stage AI Advisory Pipeline** | Google Gemini API, Pydantic guardrails, SSE streaming, multi-pass reasoning | [06_advisory_tab.png](file:///home/benoi/Projects/Folio_guard/.reports/e2e_screenshots/06_advisory_tab.png) | [Ready](file:///home/benoi/Projects/Folio_guard/docs/plans/campaigns/week2_post3_ai_advisory_pipeline.md) |
-| **Week 2** | **Post 4** | Thursday | **Dashboard & Data Visualization** | Next.js 14, Tailwind, Recharts, dark/light theme, institutional UX | Carousel: [02_holdings_tab.png](file:///home/benoi/Projects/Folio_guard/.reports/e2e_screenshots/02_holdings_tab.png) & [03_sector_tab.png](file:///home/benoi/Projects/Folio_guard/.reports/e2e_screenshots/03_sector_tab.png) | Backlog |
+| **Week 2** | **Post 4** | Thursday | **Dashboard & Data Visualization** | Next.js 14, Tailwind, Recharts, dark/light theme, institutional UX | Carousel: [02_holdings_tab.png](file:///home/benoi/Projects/Folio_guard/.reports/e2e_screenshots/02_holdings_tab.png) & [03_sector_tab.png](file:///home/benoi/Projects/Folio_guard/.reports/e2e_screenshots/03_sector_tab.png) | [Ready](file:///home/benoi/Projects/Folio_guard/docs/plans/campaigns/week2_post4_dashboard_data_viz.md) |
 | **Week 3** | **Post 5** | Tuesday | **Zerodha Integration & Security** | Fernet AES-256, free `enctoken` session vs OAuth, PBKDF2 hashing | [02_holdings_tab.png](file:///home/benoi/Projects/Folio_guard/.reports/e2e_screenshots/02_holdings_tab.png) | Backlog |
 | **Week 3** | **Post 6** | Thursday | **Quantitative Risk Engine** | XIRR (Newton-Raphson), Sharpe, Sortino, Beta vs NIFTY 50, 4-tier fallback | [04_performance_tab.png](file:///home/benoi/Projects/Folio_guard/.reports/e2e_screenshots/04_performance_tab.png) | Backlog |
 | **Week 4** | **Post 7** | Tuesday | **Tax-Loss Harvesting (Budget 2024)** | STCG 20%, LTCG 12.5%, ₹1.25L exemption, holding period engine | [05_tax_tab.png](file:///home/benoi/Projects/Folio_guard/.reports/e2e_screenshots/05_tax_tab.png) | Backlog |
@@ -81,6 +81,7 @@
 ---
 
 ### 📌 Post 4 — Institutional Frontend UX with Next.js 14 & Recharts (Week 2, Day 2)
+> **Full Blueprint & Post Copy:** 👉 [week2_post4_dashboard_data_viz.md](file:///home/benoi/Projects/Folio_guard/docs/plans/campaigns/week2_post4_dashboard_data_viz.md)
 - **Primary Message:** Engineering an interactive, institutional-grade analytics dashboard with Next.js 14, Tailwind CSS, and Recharts.
 - **Hook Idea:**
   > *"Data is useless if users can't digest it. When building FolioGuard, I wanted the interface to feel like Bloomberg Terminal meets modern Linear UI."*
